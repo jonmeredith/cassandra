@@ -85,12 +85,12 @@ references:
     CCM_HEAP_NEWSIZE: 256M
 
   env_settings: &env_settings
-    <<: *default_env_settings
-    # <<: *high_capacity_env_settings
+    # <<: *default_env_settings
+    <<: *high_capacity_env_settings
 
   env_vars: &env_vars
-    <<: *resource_constrained_env_vars
-    # <<: *high_capacity_env_vars
+    # <<: *resource_constrained_env_vars
+    <<: *high_capacity_env_vars
 
   container_config: &container_config
     docker:
@@ -371,12 +371,12 @@ with_dtest_jobs_only-test-coverage: &with_dtest_jobs_only-test-coverage
 
 workflows:
   version: 2
-  build_and_run_tests: *default_jobs
+  # build_and_run_tests: *default_jobs
   # build_and_run_tests: *with_dtest_jobs_only
   # build_and_run_tests: *with_dtest_jobs
   # build_and_run_tests: *unittest-test-coverage
   # build_and_run_tests: *with_dtest_jobs_only-test-coverage
-  # build_and_run_tests: *with_dtest_jobs-test-coverage
+  build_and_run_tests: *with_dtest_jobs-test-coverage
 
 jobs:
   build:
