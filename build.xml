@@ -1441,6 +1441,14 @@
   </target>
 
   <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+    ant burn-testsome -Dtest.name=org.apache.cassandra.utils.memory.LongBufferPoolTest -Dtest.methods=testAllocate
+  -->
+  <target name="burn-testsome" depends="build-test" description="Execute specific burn unit tests" >
+    <testmacro inputdir="${test.burn.src}" timeout="${test.burn.timeout}">
+      <test name="${test.name}" methods="${test.methods}"/>
+    </testmacro>
+  </target>
+  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
     ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ViewLongTest -Dtest.methods=testConflictResolution
   -->
   <target name="long-testsome" depends="build-test" description="Execute specific long unit tests" >
