@@ -25,6 +25,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.BeforeClass;
@@ -96,6 +97,8 @@ public class LongBufferPoolTest
         final CountDownLatch latch = new CountDownLatch(threadCount);
         final SPSCQueue<BufferCheck>[] sharedRecycle = new SPSCQueue[threadCount];
         final AtomicBoolean[] makingProgress = new AtomicBoolean[threadCount];
+        final AtomicLong allThreadsTotalMem = new AtomicLong(poolSize / 10);
+
         for (int i = 0 ; i < sharedRecycle.length ; i++)
         {
             sharedRecycle[i] = new SPSCQueue<>();
@@ -107,10 +110,15 @@ public class LongBufferPoolTest
         long prevPoolSize = BufferPool.MEMORY_USAGE_THRESHOLD;
         BufferPool.MEMORY_USAGE_THRESHOLD = poolSize;
         BufferPool.DEBUG = true;
+
+        // Divide the poolSize across our threads, deliberately over-subscribing it.  Threads
+        // allocate a different amount of memory each - 1*quanta, 2*quanta, ... N*quanta.
+        // Thread0 is always going to be a single CHUNK, then to allocate increasing amounts
+        // using their own algorithm the targetSize should be poolSize / targetSizeQuanta.
+
         // sum(1..n) = n/2 * (n + 1); we set zero to CHUNK_SIZE, so have n=threadCount-1
         int targetSizeQuanta = ((threadCount) * (threadCount - 1)) / 2;
-        // fix targetSizeQuanta at 1/64th our poolSize, so that we only consciously exceed our pool size limit
-        targetSizeQuanta = (targetSizeQuanta * poolSize) / 64;
+        targetSizeQuanta = (poolSize + targetSizeQuanta - 1) / targetSizeQuanta;
 
         {
             // setup some high churn allocate/deallocate, without any checking
@@ -169,6 +177,9 @@ public class LongBufferPoolTest
         {
             final int threadIdx = t;
             final int targetSize = t == 0 ? BufferPool.CHUNK_SIZE : targetSizeQuanta * t;
+            allThreadsTotalMem.addAndGet((long)targetSize);
+
+            logger.info("Thread {} targetSize {}", threadIdx, targetSize);
 
             ret.add(executorService.submit(new TestUntil(until)
             {
@@ -180,10 +191,12 @@ public class LongBufferPoolTest
                 int freeingSize = 0;
                 int size = 0;
 
+                int generate_buffer_size() { // TODO: Undo limiting to CHUNK_SIZE
+                    return (int) Math.max(1, avgBufferSize + (stdevBufferSize * rand.nextGaussian()));
+                }
                 void checkpoint()
                 {
-                    if (!makingProgress[threadIdx].get())
-                        makingProgress[threadIdx].set(true);
+                    makingProgress[threadIdx].compareAndSet(false, true);
                 }
 
                 void testOne() throws Exception
@@ -239,7 +252,7 @@ public class LongBufferPoolTest
                     }
 
                     // allocate a new buffer
-                    size = (int) Math.max(1, avgBufferSize + (stdevBufferSize * rand.nextGaussian()));
+                    size = generate_buffer_size();
                     if (size <= BufferPool.CHUNK_SIZE)
                     {
                         totalSize += BufferPool.roundUpNormal(size);
@@ -254,7 +267,7 @@ public class LongBufferPoolTest
                         // perform a burst allocation to exhaust all available memory
                         while (totalSize < poolSize)
                         {
-                            size = (int) Math.max(1, avgBufferSize + (stdevBufferSize * rand.nextGaussian()));
+                            size = generate_buffer_size();
                             if (size <= BufferPool.CHUNK_SIZE)
                             {
                                 allocate(size);
@@ -343,6 +356,9 @@ public class LongBufferPoolTest
             }));
         }
 
+        logger.info("Worst case total allocation {} with {} thread argument", allThreadsTotalMem.get(), threadCount);
+        assert(allThreadsTotalMem.get() >= poolSize);
+
         boolean first = true;
         while (!latch.await(10L, TimeUnit.SECONDS))
         {
@@ -351,8 +367,7 @@ public class LongBufferPoolTest
             first = false;
             for (AtomicBoolean progress : makingProgress)
             {
-                assert progress.get();
-                progress.set(false);
+                assert progress.compareAndSet(true, false);
             }
         }
 
