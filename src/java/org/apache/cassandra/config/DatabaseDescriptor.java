@@ -963,6 +963,11 @@ public class DatabaseDescriptor
         return conf.column_index_size_in_kb * 1024;
     }
 
+    public static void setColumnIndexSizeInKB(int columnIndexSizeInKB)
+    {
+        conf.column_index_size_in_kb = columnIndexSizeInKB;
+    }
+
     public static int getBatchSizeWarnThreshold()
     {
         return conf.batch_size_warn_threshold_in_kb * 1024;
