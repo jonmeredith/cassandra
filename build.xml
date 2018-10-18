@@ -369,6 +369,7 @@
 	         <exclusion groupId="commons-logging" artifactId="commons-logging"/>
           </dependency>
           <dependency groupId="junit" artifactId="junit" version="4.6" />
+          <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.26-SNAPSHOT" />
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
           </dependency>
@@ -491,6 +492,7 @@
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <dependency groupId="junit" artifactId="junit"/>
+        <dependency groupId="org.quicktheories" artifactId="quicktheories" />
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded"/>
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
