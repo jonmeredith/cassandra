@@ -27,63 +27,88 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
-public class QuickTheory14513Test extends CQLTester
+public class QuickTheory14513Test
 {
     private static final Logger logger = LoggerFactory.getLogger(QuickTheory14513Test.class);
     private static final String TABLE_NAME = "logs";
-    private String tableName;
 
-    void assertForwardAndReverseIteratorsReturnSame(String baseQuery) throws Throwable
+    public class SUT extends CQLTester
     {
-        String forwardQuery = baseQuery + " ORDER BY year ASC";
-        String reverseQuery = baseQuery + " ORDER BY year DESC";
-        UntypedResultSet forwardResult = execute(forwardQuery);
-        UntypedResultSet reverseResult = execute(reverseQuery);
-        assertEquals(1, forwardResult.size());
-        logger.info(String.format("%s query result: %d", forwardQuery, forwardResult.one().getLong("c")));
-        assertEquals(forwardResult.one().getLong("c"), reverseResult.one().getLong("c"));
-    }
+        private String tableName;
 
-    // Create Keyspace and Table
-    void prepareTable() throws Throwable
-    {
-        tableName = createTable("CREATE TABLE %s (user text, year int, month int, day int, title text, body text, PRIMARY KEY ((user), year, month, day, title))");
-        logger.info(String.format("Created table %s", tableName));
-
-    }
-
-    // Write entries
-    void writeEntries() throws Throwable
-    {
-        String query = "INSERT INTO %s (user, year, month, day, title, body) VALUES (?, ?, ?, ?, ?, ?)";
-        for (int year = 2011; year < 2018; year++)
+        void assertCount(long expected, String query)
         {
-            for (int month = 1; month < 13; month++)
+            try
             {
-                for (int day = 1; day < 31; day++)
+                logger.info("Checking for expected count of %d for %s", expected, query);
+                UntypedResultSet result = execute(query);
+                assertRows(result, row(expected));
+            }
+            catch (Throwable t)
+            {
+                fail(t.toString());
+            }
+        }
+
+        void assertForwardAndReverseIteratorsReturnSame(String baseQuery) throws Throwable
+        {
+            String forwardQuery = baseQuery + " ORDER BY year ASC";
+            String reverseQuery = baseQuery + " ORDER BY year DESC";
+            UntypedResultSet forwardResult = execute(forwardQuery);
+            UntypedResultSet reverseResult = execute(reverseQuery);
+            assertEquals(1, forwardResult.size());
+            logger.info(String.format("%s query result: %d", forwardQuery, forwardResult.one().getLong("c")));
+            assertEquals(String.format("Query '%s' returns same results in ascending and descending order", baseQuery),
+                          forwardResult.one().getLong("c"), reverseResult.one().getLong("c"));
+        }
+
+        // Create Keyspace and Table
+        void prepareTable() throws Throwable
+        {
+            tableName = createTable("CREATE TABLE %s (user text, year int, month int, day int, title text, body text, PRIMARY KEY ((user), year, month, day, title))");
+            logger.info(String.format("Created table %s", tableName));
+        }
+
+        // Write entries
+        void writeEntries() throws Throwable
+        {
+            String query = "INSERT INTO %s (user, year, month, day, title, body) VALUES (?, ?, ?, ?, ?, ?)";
+            for (int year = 2011; year < 2018; year++)
+            {
+                for (int month = 1; month < 13; month++)
                 {
-                    execute(query, "beobal", year, month, day, "title", "Lorem ipsum dolor sit amet");
+                    for (int day = 1; day < 31; day++)
+                    {
+                        execute(query, "beobal", year, month, day, "title", "Lorem ipsum dolor sit amet");
+                    }
                 }
             }
         }
-    }
 
-    // Check entry count
-    // Delete ranges of entries
-    void deleteEntries() throws Throwable
-    {
-        StringBuilder sb = new StringBuilder();
-
-        sb.append("BEGIN UNLOGGED BATCH\n");
-        for (int day = 1; day < 31; day++)
+        // Check entry count
+        // Delete ranges of entries
+        void deleteEntries() throws Throwable
         {
-            sb.append(String.format("DELETE FROM %s.%s WHERE user = 'beobal' AND year = %d AND month = %d AND day = %d;\n",
-                                     KEYSPACE, tableName, 2018, 1, day));
+            StringBuilder sb = new StringBuilder();
+
+            sb.append("BEGIN UNLOGGED BATCH\n");
+            for (int day = 1; day < 31; day++)
+            {
+                sb.append(String.format("DELETE FROM %s.%s WHERE user = 'beobal' AND year = %d AND month = %d AND day = %d;\n",
+                                        KEYSPACE, tableName, 2018, 1, day));
+            }
+            sb.append("APPLY BATCH");
+            String query = sb.toString();
+            executeInternal(query);
         }
-        sb.append("APPLY BATCH");
-        String query = sb.toString();
-        executeInternal(query);
+
+        @Override
+        public void flush()
+        {
+            super.flush();
+        }
     }
 
     @Test
@@ -91,17 +116,26 @@ public class QuickTheory14513Test extends CQLTester
     {
         DatabaseDescriptor.setColumnIndexSizeInKB(1);
         assertEquals(1024, DatabaseDescriptor.getColumnIndexSize());
-        prepareTable();
-        writeEntries();
-        flush();
-        long expectedRows = 7 * 12 * 30;
-        assertRows(execute("SELECT COUNT(*) FROM %s WHERE user = 'beobal' AND year < 2018"), row(expectedRows));
-        assertForwardAndReverseIteratorsReturnSame(
-        "SELECT COUNT(*) AS c FROM %s WHERE user = 'beobal' AND year < 2018");
-        deleteEntries();
-        flush();
-        assertForwardAndReverseIteratorsReturnSame(
-        "SELECT COUNT(*) AS c FROM %s WHERE user = 'beobal' AND year < 2018");
-        assert(true);
+        SUT sut = new SUT();
+        sut.beforeTest();
+        try
+        {
+            sut.prepareTable();
+            sut.writeEntries();
+            sut.flush();
+            long expectedRows = 7 * 12 * 30;
+            sut.assertCount(expectedRows, "SELECT COUNT(*) FROM %s WHERE user = 'beobal' AND year < 2018");
+            sut.assertForwardAndReverseIteratorsReturnSame(
+            "SELECT COUNT(*) AS c FROM %s WHERE user = 'beobal' AND year < 2018");
+            sut.deleteEntries();
+            sut.flush();
+            sut.assertForwardAndReverseIteratorsReturnSame(
+            "SELECT COUNT(*) AS c FROM %s WHERE user = 'beobal' AND year < 2018");
+        }
+        finally
+        {
+            sut.afterTest();
+        }
     }
+
 }
