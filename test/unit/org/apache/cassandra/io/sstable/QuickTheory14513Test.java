@@ -22,6 +22,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.quicktheories.WithQuickTheories;
+import org.quicktheories.impl.stateful.StatefulTheory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -29,12 +32,11 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-public class QuickTheory14513Test
+public class QuickTheory14513Test implements WithQuickTheories
 {
     private static final Logger logger = LoggerFactory.getLogger(QuickTheory14513Test.class);
-    private static final String TABLE_NAME = "logs";
 
-    public class SUT extends CQLTester
+    public static class SUT extends CQLTester
     {
         private String tableName;
 
@@ -66,7 +68,7 @@ public class QuickTheory14513Test
             }
         }
 
-        public UntypedResultSet execute2(String query, Object... values )
+        public UntypedResultSet execute2(String query, Object... values)
         {
             UntypedResultSet result = null;
             try
@@ -83,7 +85,7 @@ public class QuickTheory14513Test
         void assertCount(long expected, String query)
         {
 
-            logger.info("Checking for expected count of %d for %s", expected, query);
+            logger.info(String.format("Checking for expected count of %d for %s", expected, query));
             UntypedResultSet result = execute2(query);
             assertRows(result, row(expected));
         }
@@ -95,9 +97,12 @@ public class QuickTheory14513Test
             UntypedResultSet forwardResult = execute2(forwardQuery);
             UntypedResultSet reverseResult = execute2(reverseQuery);
             assertEquals(1, forwardResult.size());
-            logger.info(String.format("%s query result: %d", forwardQuery, forwardResult.one().getLong("c")));
+            logger.info(String.format("%s query forward result: %d reverse result: %d",
+                                      baseQuery,
+                                      forwardResult.one().getLong("c"),
+                                      reverseResult.one().getLong("c")));
             assertEquals(String.format("Query '%s' returns same results in ascending and descending order", baseQuery),
-                          forwardResult.one().getLong("c"), reverseResult.one().getLong("c"));
+                         forwardResult.one().getLong("c"), reverseResult.one().getLong("c"));
         }
 
         // Create Keyspace and Table
@@ -174,4 +179,101 @@ public class QuickTheory14513Test
         }
     }
 
+
+    @Test
+    public void qtTest()
+    {
+        CQLTester.setUpClass();
+        try
+        {
+            DatabaseDescriptor.setColumnIndexSizeInKB(1);
+            assertEquals(1024, DatabaseDescriptor.getColumnIndexSize());
+            qt().withExamples(1000).stateful(() -> new Model());
+        }
+        finally
+        {
+            CQLTester.tearDownClass();
+        }
+    }
+
+    public static class Model extends StatefulTheory.StepBased
+    {
+        private SUT sut = null;
+
+        public boolean isSetup()
+        {
+            return sut != null;
+        }
+
+        public void setup()
+        {
+            sut = new SUT();
+            try
+            {
+                sut.beforeTest();
+            }
+            catch (Throwable t)
+            {
+                fail(t.toString());
+            }
+            sut.prepareTable();
+            sut.flush(); // Not removing keyspace now, so make sure flushed
+        }
+
+        public void writeEntries()
+        {
+            sut.writeEntries();
+        }
+
+        public void deleteEntries()
+        {
+            sut.deleteEntries();
+        }
+
+        public void flush()
+        {
+            sut.flush();
+        }
+
+        public void compareCount()
+        {
+            sut.assertForwardAndReverseIteratorsReturnSame(
+            "SELECT COUNT(*) AS c FROM %s WHERE user = 'beobal' AND year < 2018");
+        }
+
+        public void checkCount(long expectedRows)
+        {
+            sut.assertCount(expectedRows, "SELECT COUNT(*) AS c FROM %s WHERE user = 'beobal' AND year < 2018");
+        }
+
+        public void guaranteedGlory()
+        {
+            checkCount(0L);
+            writeEntries();
+            flush();
+            long expectedRows = 7 * 12 * 30;
+            checkCount(expectedRows);
+            deleteEntries();
+            flush();
+            checkCount(expectedRows);
+            compareCount();
+            logger.info("booo, made it to the end");
+        }
+
+        protected void initSteps()
+        {
+            addStep(step("setup", () -> !this.isSetup(), this::setup, null));
+            addStep(step("guaranteedGlory", () -> this.isSetup(), this::guaranteedGlory, null));
+//            addStep(step("writeEntries", () -> this.isSetup(), this::writeEntries, null));
+//            addStep(step("deleteEntries", () -> this.isSetup(), this::deleteEntries, null));
+//            addStep(step("flush", () -> this.isSetup(), this::flush, null));
+//            addStep(step("compareCount", () -> this.isSetup(), this::compareCount, null));
+        }
+
+        @Override
+        public void teardown()
+        {
+            sut.afterTest();
+        }
+    }
 }
