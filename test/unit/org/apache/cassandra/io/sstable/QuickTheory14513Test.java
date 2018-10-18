@@ -38,26 +38,62 @@ public class QuickTheory14513Test
     {
         private String tableName;
 
-        void assertCount(long expected, String query)
+        // NB not adding annotation to automatically call here
+        @Override
+        public void beforeTest()
         {
             try
             {
-                logger.info("Checking for expected count of %d for %s", expected, query);
-                UntypedResultSet result = execute(query);
-                assertRows(result, row(expected));
+                super.beforeTest();
             }
             catch (Throwable t)
             {
-                fail(t.toString());
+                fail(t.getMessage());
             }
         }
 
-        void assertForwardAndReverseIteratorsReturnSame(String baseQuery) throws Throwable
+        // NB not adding annotation to automatically call after test here
+        @Override
+        public void afterTest()
+        {
+            try
+            {
+                super.afterTest();
+            }
+            catch (Throwable t)
+            {
+                fail(t.getMessage());
+            }
+        }
+
+        public UntypedResultSet execute2(String query, Object... values )
+        {
+            UntypedResultSet result = null;
+            try
+            {
+                result = execute(query, values);
+            }
+            catch (Throwable t)
+            {
+                fail(t.getMessage());
+            }
+            return result;
+        }
+
+        void assertCount(long expected, String query)
+        {
+
+            logger.info("Checking for expected count of %d for %s", expected, query);
+            UntypedResultSet result = execute2(query);
+            assertRows(result, row(expected));
+        }
+
+        void assertForwardAndReverseIteratorsReturnSame(String baseQuery)
         {
             String forwardQuery = baseQuery + " ORDER BY year ASC";
             String reverseQuery = baseQuery + " ORDER BY year DESC";
-            UntypedResultSet forwardResult = execute(forwardQuery);
-            UntypedResultSet reverseResult = execute(reverseQuery);
+            UntypedResultSet forwardResult = execute2(forwardQuery);
+            UntypedResultSet reverseResult = execute2(reverseQuery);
             assertEquals(1, forwardResult.size());
             logger.info(String.format("%s query result: %d", forwardQuery, forwardResult.one().getLong("c")));
             assertEquals(String.format("Query '%s' returns same results in ascending and descending order", baseQuery),
@@ -65,14 +101,14 @@ public class QuickTheory14513Test
         }
 
         // Create Keyspace and Table
-        void prepareTable() throws Throwable
+        void prepareTable()
         {
             tableName = createTable("CREATE TABLE %s (user text, year int, month int, day int, title text, body text, PRIMARY KEY ((user), year, month, day, title))");
             logger.info(String.format("Created table %s", tableName));
         }
 
         // Write entries
-        void writeEntries() throws Throwable
+        void writeEntries()
         {
             String query = "INSERT INTO %s (user, year, month, day, title, body) VALUES (?, ?, ?, ?, ?, ?)";
             for (int year = 2011; year < 2018; year++)
@@ -81,7 +117,7 @@ public class QuickTheory14513Test
                 {
                     for (int day = 1; day < 31; day++)
                     {
-                        execute(query, "beobal", year, month, day, "title", "Lorem ipsum dolor sit amet");
+                        execute2(query, "beobal", year, month, day, "title", "Lorem ipsum dolor sit amet");
                     }
                 }
             }
@@ -89,7 +125,7 @@ public class QuickTheory14513Test
 
         // Check entry count
         // Delete ranges of entries
-        void deleteEntries() throws Throwable
+        void deleteEntries()
         {
             StringBuilder sb = new StringBuilder();
 
@@ -101,7 +137,7 @@ public class QuickTheory14513Test
             }
             sb.append("APPLY BATCH");
             String query = sb.toString();
-            executeInternal(query);
+            execute2(query);
         }
 
         @Override
@@ -112,7 +148,7 @@ public class QuickTheory14513Test
     }
 
     @Test
-    public void inJVM14513() throws Throwable
+    public void inJVM14513()
     {
         DatabaseDescriptor.setColumnIndexSizeInKB(1);
         assertEquals(1024, DatabaseDescriptor.getColumnIndexSize());
