@@ -246,28 +246,39 @@ public class QuickTheory14513Test implements WithQuickTheories
             sut.assertCount(expectedRows, "SELECT COUNT(*) AS c FROM %s WHERE user = 'beobal' AND year < 2018");
         }
 
+
+        public void reproStep1()
+        {
+            writeEntries();
+            flush();
+        }
+
+        public void reproStep2()
+        {
+            deleteEntries();
+            flush();
+            compareCount();
+        }
+
         public void guaranteedGlory()
         {
             checkCount(0L);
-            writeEntries();
-            flush();
-            long expectedRows = 7 * 12 * 30;
-            checkCount(expectedRows);
-            deleteEntries();
-            flush();
-            checkCount(expectedRows);
-            compareCount();
+            reproStep1();
+            checkCount(7 * 12 * 30);
+            reproStep2();
             logger.info("booo, made it to the end");
         }
 
         protected void initSteps()
         {
             addStep(step("setup", () -> !this.isSetup(), this::setup, null));
-            addStep(step("guaranteedGlory", () -> this.isSetup(), this::guaranteedGlory, null));
 //            addStep(step("writeEntries", () -> this.isSetup(), this::writeEntries, null));
 //            addStep(step("deleteEntries", () -> this.isSetup(), this::deleteEntries, null));
 //            addStep(step("flush", () -> this.isSetup(), this::flush, null));
 //            addStep(step("compareCount", () -> this.isSetup(), this::compareCount, null));
+              addStep(step("reproStep1", () -> this.isSetup(), this::reproStep1, null));
+              addStep(step("reproStep2", () -> this.isSetup(), this::reproStep2, null));
+//            addStep(step("guaranteedGlory", () -> this.isSetup(), this::guaranteedGlory, null));
         }
 
         @Override
