@@ -247,13 +247,13 @@ public class QuickTheory14513Test implements WithQuickTheories
         }
 
 
-        public void reproStep1()
+        public void writeAndFlush()
         {
             writeEntries();
             flush();
         }
 
-        public void reproStep2()
+        public void deleteAndFlush()
         {
             deleteEntries();
             flush();
@@ -263,9 +263,9 @@ public class QuickTheory14513Test implements WithQuickTheories
         public void guaranteedGlory()
         {
             checkCount(0L);
-            reproStep1();
+            writeAndFlush();
             checkCount(7 * 12 * 30);
-            reproStep2();
+            deleteAndFlush();
             logger.info("booo, made it to the end");
         }
 
@@ -275,9 +275,9 @@ public class QuickTheory14513Test implements WithQuickTheories
 //            addStep(step("writeEntries", () -> this.isSetup(), this::writeEntries, null));
 //            addStep(step("deleteEntries", () -> this.isSetup(), this::deleteEntries, null));
 //            addStep(step("flush", () -> this.isSetup(), this::flush, null));
-//            addStep(step("compareCount", () -> this.isSetup(), this::compareCount, null));
-              addStep(step("reproStep1", () -> this.isSetup(), this::reproStep1, null));
-              addStep(step("reproStep2", () -> this.isSetup(), this::reproStep2, null));
+            addStep(step("writeAndFlush", () -> this.isSetup(), this::writeAndFlush, null));
+            addStep(step("deleteAndFlush", () -> this.isSetup(), this::deleteAndFlush, null));
+            addStep(step("compareCount", () -> this.isSetup(), this::compareCount, null));
 //            addStep(step("guaranteedGlory", () -> this.isSetup(), this::guaranteedGlory, null));
         }
 
