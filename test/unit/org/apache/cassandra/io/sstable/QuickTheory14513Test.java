@@ -113,10 +113,10 @@ public class QuickTheory14513Test implements WithQuickTheories
         }
 
         // Write entries
-        void writeEntries()
+        void writeEntries(int yearsBefore)
         {
             String query = "INSERT INTO %s (user, year, month, day, title, body) VALUES (?, ?, ?, ?, ?, ?)";
-            for (int year = 2011; year < 2018; year++)
+            for (int year = 2018 - yearsBefore; year < 2018; year++)
             {
                 for (int month = 1; month < 13; month++)
                 {
@@ -162,7 +162,7 @@ public class QuickTheory14513Test implements WithQuickTheories
         try
         {
             sut.prepareTable();
-            sut.writeEntries();
+            sut.writeEntries(7);
             sut.flush();
             long expectedRows = 7 * 12 * 30;
             sut.assertCount(expectedRows, "SELECT COUNT(*) FROM %s WHERE user = 'beobal' AND year < 2018");
@@ -196,7 +196,7 @@ public class QuickTheory14513Test implements WithQuickTheories
         }
     }
 
-    public static class Model extends StatefulTheory.StepBased
+    public static class Model extends StatefulTheory.StepBased implements WithQuickTheories
     {
         private SUT sut = null;
 
@@ -220,9 +220,9 @@ public class QuickTheory14513Test implements WithQuickTheories
             sut.flush(); // Not removing keyspace now, so make sure flushed
         }
 
-        public void writeEntries()
+        public void writeEntries(int startYear)
         {
-            sut.writeEntries();
+            sut.writeEntries(startYear);
         }
 
         public void deleteEntries()
@@ -247,9 +247,9 @@ public class QuickTheory14513Test implements WithQuickTheories
         }
 
 
-        public void writeAndFlush()
+        public void writeAndFlush(int yearsBefore)
         {
-            writeEntries();
+            writeEntries(yearsBefore);
             flush();
         }
 
@@ -263,7 +263,7 @@ public class QuickTheory14513Test implements WithQuickTheories
         public void guaranteedGlory()
         {
             checkCount(0L);
-            writeAndFlush();
+            writeAndFlush(7);
             checkCount(7 * 12 * 30);
             deleteAndFlush();
             logger.info("booo, made it to the end");
@@ -275,7 +275,7 @@ public class QuickTheory14513Test implements WithQuickTheories
 //            addStep(step("writeEntries", () -> this.isSetup(), this::writeEntries, null));
 //            addStep(step("deleteEntries", () -> this.isSetup(), this::deleteEntries, null));
 //            addStep(step("flush", () -> this.isSetup(), this::flush, null));
-            addStep(step("writeAndFlush", () -> this.isSetup(), this::writeAndFlush, null));
+            addStep(step("writeAndFlush", () -> this.isSetup(), integers().between(1, 7), this::writeAndFlush,null));
             addStep(step("deleteAndFlush", () -> this.isSetup(), this::deleteAndFlush, null));
             addStep(step("compareCount", () -> this.isSetup(), this::compareCount, null));
 //            addStep(step("guaranteedGlory", () -> this.isSetup(), this::guaranteedGlory, null));
