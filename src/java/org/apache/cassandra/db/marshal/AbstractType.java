@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.db.ComplexDataCellsResolver;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -323,6 +324,10 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     public boolean isMultiCell()
     {
         return false;
+    }
+
+    public ComplexDataCellsResolver getCellsResolver() {
+        return ComplexDataCellsResolver.DEFAULT;
     }
 
     public boolean isTuple()

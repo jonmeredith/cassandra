@@ -31,6 +31,21 @@ import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
  */
 public abstract class Cells
 {
+    /** Interface for reconciling all of the cells in a complex type before
+     *  committing them to the final builder.
+     *
+     * @param <T> the ultimate type being created for this build
+     */
+    public static interface Builder
+    {
+        public void addCell(Cell cell);
+        // Grr, two variants for adding complex deletion -
+        //    public void addComplexDeletion(DeletionTime complexDeletion);
+        //    public void addComplexDeletion(ColumnDefinition column, DeletionTime complexDeletion);
+
+        default void endColumn() { };
+    }
+
     private Cells() {}
 
     /**
@@ -76,7 +91,7 @@ public abstract class Cells
     public static long reconcile(Cell existing,
                                  Cell update,
                                  DeletionTime deletion,
-                                 Row.Builder builder,
+                                 Builder builder,
                                  int nowInSec)
     {
         existing = existing == null || deletion.deletes(existing) ? null : existing;
@@ -186,7 +201,7 @@ public abstract class Cells
      * {@code existing} to {@code writer}.
      * @param deletion the deletion time that applies to the cells being considered.
      * This deletion time may delete cells in both {@code existing} and {@code update}.
-     * @param builder the row build to which the result of the reconciliation is written.
+     * @param rowBuilder the row build to which the result of the reconciliation is written.
      * @param nowInSec the current time in seconds (which plays a role during reconciliation
      * because deleted cells always have precedence on timestamp equality and deciding if a
      * cell is a live or not depends on the current time due to expiring cells).
@@ -201,9 +216,10 @@ public abstract class Cells
                                         Iterator<Cell> existing,
                                         Iterator<Cell> update,
                                         DeletionTime deletion,
-                                        Row.Builder builder,
+                                        Builder rowBuilder,
                                         int nowInSec)
     {
+        Builder builder = column.type.getCellsResolver().getCellBuilder(rowBuilder);
         Comparator<CellPath> comparator = column.cellPathComparator();
         Cell nextExisting = getNext(existing);
         Cell nextUpdate = getNext(update);
@@ -230,6 +246,7 @@ public abstract class Cells
                 nextUpdate = getNext(update);
             }
         }
+        builder.endColumn();
         return timeDelta;
     }
 
