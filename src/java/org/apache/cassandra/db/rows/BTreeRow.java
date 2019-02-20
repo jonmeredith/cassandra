@@ -542,6 +542,25 @@ public class BTreeRow extends AbstractRow
 
     public static class Builder implements Row.Builder
     {
+        public static class CellBuilder implements Cells.Builder
+        {
+            List<Object> cells;
+
+            CellBuilder(List<Object> cells)
+            {
+                this.cells = cells;
+            }
+            public void endColumn()
+            {
+                // nop
+            }
+
+            public void addCell(Cell cell)
+            {
+                cells.add(cell);
+            }
+        }
+
         // a simple marker class that will sort to the beginning of a run of complex cells to store the deletion time
         private static class ComplexColumnDeletion extends BufferCell
         {
@@ -592,6 +611,10 @@ public class BTreeRow extends AbstractRow
                 }
 
                 List<Object> buildFrom = new ArrayList<>(ub - lb);
+                Cells.Builder buildFromBuilder = new CellBuilder(buildFrom);
+                ComplexDataCellsResolver ccr = column.type.getCellsResolver();
+                Cells.Builder builder = ccr.getCellBuilder(buildFromBuilder);
+
                 Cell previous = null;
                 for (int i = lb; i < ub; i++)
                 {
@@ -599,18 +622,23 @@ public class BTreeRow extends AbstractRow
 
                     if (deletion == DeletionTime.LIVE || c.timestamp() >= deletion.markedForDeleteAt())
                     {
-                        if (previous != null && column.cellComparator().compare(previous, c) == 0)
-                        {
-                            c = Cells.reconcile(previous, c, nowInSec);
-                            buildFrom.set(buildFrom.size() - 1, c);
+                        if (previous == null) {
+                            previous = c;
                         }
-                        else
+                        else if (column.cellComparator().compare(previous, c) == 0)
                         {
-                            buildFrom.add(c);
+                            previous = Cells.reconcile(previous, c, nowInSec);
                         }
-                        previous = c;
+                        else // previous != null && cellComparator != 0
+                        {
+                            builder.addCell(previous);
+                            previous = c;
+                        }
                     }
                 }
+                if (previous != null)
+                    builder.addCell(previous);
+                builder.endColumn();
 
                 Object[] btree = BTree.build(buildFrom, UpdateFunction.noOp());
                 return new ComplexColumnData(column, btree, deletion);
