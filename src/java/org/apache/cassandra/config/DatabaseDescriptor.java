@@ -2105,4 +2105,9 @@ public class DatabaseDescriptor
     {
         return conf.gc_warn_threshold_in_ms;
     }
+
+    public static Set<String> getCustomFcts()
+    {
+        return conf.custom_fcts;
+    }
 }

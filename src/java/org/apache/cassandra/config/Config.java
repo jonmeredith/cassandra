@@ -348,6 +348,12 @@ public class Config
      */
     public UserFunctionTimeoutPolicy user_function_timeout_policy = UserFunctionTimeoutPolicy.die;
 
+    /**
+     * Class names to look for custom functions in.  They must define a static @code{Collection<Function> all()}
+     * that returns the custom functions to add.
+     */
+    public Set<String> custom_fcts = Sets.newConcurrentHashSet();
+
     public static boolean getOutboundBindAny()
     {
         return outboundBindAny;
