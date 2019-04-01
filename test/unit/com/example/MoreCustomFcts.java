@@ -27,13 +27,15 @@ import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.NativeScalarFunction;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class MoreCustomFcts
 {
     public static final Function questionFct = new NativeScalarFunction("question", UTF8Type.instance, UTF8Type.instance)
     {
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        @Override
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             ByteBuffer bb = ByteBuffer.allocate(parameters.get(0).capacity() + 1);
             ByteBufferUtil.put(parameters.get(0), bb);

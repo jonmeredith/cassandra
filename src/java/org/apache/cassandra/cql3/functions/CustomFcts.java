@@ -20,14 +20,14 @@ package org.apache.cassandra.cql3.functions;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -40,40 +40,32 @@ public abstract class CustomFcts
         String className = fctsClassName.contains(".") ? fctsClassName : "org.apache.cassandra.cql3.functions." + fctsClassName;
         try
         {
-            Class<?> typeClass = FBUtilities.<AbstractType<?>>classForName(className, "custom-fcts");
+            Class<?> typeClass = FBUtilities.classForName(className, "custom-fcts");
             Method allMethod = typeClass.getMethod("all");
+            if(!Modifier.isStatic(allMethod.getModifiers()))
+                throw new ConfigurationException("Non-static all() method for custom functions in " + className + ".");
             return (Collection<Function>) allMethod.invoke(null);
         }
         catch (NoSuchMethodException | IllegalAccessException e)
         {
-            ConfigurationException ex = new ConfigurationException("Inaccessible all() with custom fcts in " + className + ".");
-            ex.initCause(e);
-            throw ex;
+            throw new ConfigurationException("Inaccessible all() with custom functions in " + className + ".", e);
         }
         catch (InvocationTargetException e)
         {
-            ConfigurationException ex = new ConfigurationException("Invalid definition for custom fcts " + className + ".");
-            ex.initCause(e.getTargetException());
-            throw ex;
+            throw new ConfigurationException("Invalid definition for custom functions " + className + ".", e);
         }
         catch (ExceptionInInitializerError e)
         {
-            throw new ConfigurationException("Invalid initializer for custom fcts " + fctsClassName + ".", e);
+            throw new ConfigurationException("Invalid initializer for custom functions " + fctsClassName + ".", e);
         }
     }
 
     static public Collection<Function> all() {
-
-        Collection<Function> result = new HashSet();
-
-        for (String fctClass : DatabaseDescriptor.getCustomFcts())
-        {
-            Collection<Function> all = loadCustomFunctions(fctClass);
-            logger.info("Loaded custom functions from {}", fctClass);
-            all.forEach(fn -> logger.debug("Custom function {}", fn));
-            result.addAll(all);
-        }
-
-        return result;
+        return DatabaseDescriptor.getCustomFcts().stream()
+                .peek(fctClass->logger.info("Loading custom functions from: {}", fctClass))
+                .map(CustomFcts::loadCustomFunctions)
+                .flatMap(Collection::stream)
+                .peek(fn -> logger.debug("Loading custom function: {}", fn))
+                .collect(Collectors.toList());
     }
 }
