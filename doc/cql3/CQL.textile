@@ -1931,6 +1931,28 @@ A number of functions are provided to "convert" a @timeuuid@, a @timestamp@ or a
 h3(#blobFun). Blob conversion functions
 
 A number of functions are provided to "convert" the native types into binary data (@blob@). For every @<native-type>@ @type@ supported by CQL3 (a notable exceptions is @blob@, for obvious reasons), the function @typeAsBlob@ takes a argument of type @type@ and return it as a @blob@.  Conversely, the function @blobAsType@ takes a 64-bit @blob@ argument and convert it to a @bigint@ value.  And so for instance, @bigintAsBlob(3)@ is @0x0000000000000003@ and @blobAsBigint(0x0000000000000003)@ is @3@.
+.. _custom-preloaded-functions:
+
+h3(#customFcts). Custom preloaded functions
+
+Cassandra has strict controls on what kinds of Java code may be used in UDFs or UDAs, but it is also possible to load arbitrary
+functions by distributing code to nodes and using some configuration in @cassandra.yaml@:
+
+bc(sample). 
+custom_fcts:
+  - com.example.SomeCustomFcts
+  - com.example.MoreCustomFcts
+
+p. Each class referenced in configuration should feature a static method with the signature:
+
+bc(sample). 
+public static Collection<org.apache.cassandra.cql3.functions.Function> all()
+
+p. This method will be called and the functions it returns will be made available to all keyspaces, just as are
+the built-in functions described above. Bytecode for classes with custom functions must be made available to 
+Cassandra nodes in JARs distributed to the nodes; unlike UDFs, Cassandra intentionally provides no help with that
+task. Please be *extremely* careful using this mechanism; stepping outside the sandbox provided by the UDF/UDA mechanism
+introduces very real risks.
 
 h2(#aggregates). Aggregates
 
