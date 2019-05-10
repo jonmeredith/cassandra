@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
@@ -57,6 +58,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 /**
@@ -100,6 +102,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
     // mutated by user-facing API
     private final MessageFilters filters;
+    Map<InetAddressAndPort, Pair<String,String>> networkToplogy;
 
     protected class Wrapper extends DelegatingInvokableInstance implements IUpgradeableInstance
     {
@@ -199,6 +202,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
                 throw new IllegalStateException("Cluster cannot have multiple nodes with same InetAddressAndPort: " + instance.broadcastAddressAndPort() + " vs " + prev.broadcastAddressAndPort());
         }
         this.filters = new MessageFilters();
+        this.networkToplogy = networkToplogy;
     }
 
     protected abstract I newInstanceWrapper(int generation, Versions.Version version, InstanceConfig config);
@@ -342,6 +346,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         private final int nodeCount;
         private final Factory<I, C> factory;
         private int subnet;
+        private Map<Pair<String,String>,Integer> topologyCounts;
         private File root;
         private Versions.Version version;
         private Consumer<InstanceConfig> configUpdater;
@@ -354,6 +359,36 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         public Builder<I, C> withSubnet(int subnet)
         {
             this.subnet = subnet;
+            return this;
+        }
+
+        // Divide the nodes equally between the DCs
+        public Builder<I, C> withDCs(int dcCount)
+        {
+            if (dcCount > nodeCount)
+                throw new IllegalArgumentException("Cannot have more DCs than nodes");
+
+            int nodesPerDc = nodeCount / dcCount;
+
+            topologyCounts = IntStream.range(0, dcCount).boxed()
+                                      .collect(Collectors.toMap(dc -> Pair.create(dcName(dc), rackName(0)),
+                                                                dc -> nodesPerDc + (dc == 0 ? nodeCount % dcCount : 0)));
+            return this;
+        }
+
+        // Map of cluster names to count of nodes. Node count will be updated to sum of node counts
+        public Builder<I, C> withDCs(Map<String,Integer> dcCounts)
+        {
+            topologyCounts = dcCounts.entrySet().stream()
+                                     .collect(Collectors.toMap(e -> Pair.create(e.getKey(),rackName(0)),
+                                                               e -> e.getValue()));
+            return this;
+        }
+
+        // Map of cluster name, rack name pairs to count of nodes. Node count will be updated to sum of node counts
+        public Builder<I, C> withDCsAndRacks(Map<Pair<String,String>,Integer> dcAndRackCounts)
+        {
+            topologyCounts = dcAndRackCounts;
             return this;
         }
 
@@ -401,10 +436,42 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
                 token += increment;
             }
 
+            setNetworkTopology(configs);
+
             C cluster = factory.newCluster(root, version, configs, sharedClassLoader);
             cluster.startup();
             return cluster;
         }
+
+        private void setNetworkTopology(List<InstanceConfig> configs)
+        {
+            int nodeIndex = 0;
+            Map<InetAddressAndPort, Pair<String,String>> mapping = new HashMap<>(nodeCount);
+            if (topologyCounts != null)
+            {
+                for (Map.Entry<Pair<String, String>, Integer> e : topologyCounts.entrySet())
+                {
+                    int rackCount = e.getValue();
+                    for (int i = 0; i < rackCount; i++)
+                    {
+                        mapping.put(configs.get(nodeIndex).broadcastAddressAndPort(), e.getKey());
+                        nodeIndex++;
+                    }
+                }
+                assert nodeIndex == nodeCount : "Node count must match provided network topology";
+            }
+            configs.forEach(c -> c.networkToplogy = mapping);
+        }
+    }
+
+    static String dcName(int index)
+    {
+        return "datacenter" + index;
+    }
+
+    static String rackName(int index)
+    {
+        return "rack" + index;
     }
 
     private static void setupLogging(File root)

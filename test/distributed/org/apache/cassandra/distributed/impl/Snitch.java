@@ -16,31 +16,37 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.api;
+package org.apache.cassandra.distributed.impl;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.Pair;
 
-import java.util.Map;
-import java.util.UUID;
-
-public interface IInstanceConfig
+public class Snitch extends AbstractNetworkTopologySnitch
 {
-    int num();
-    Map<InetAddressAndPort, Pair<String,String>> networkToplogy();
-    UUID hostId();
-    InetAddressAndPort broadcastAddressAndPort();
+    final Pair<String,String> DEFAULT = Pair.create(AbstractCluster.dcName(1), AbstractCluster.rackName(1));
+    static Map<InetAddressAndPort, Pair<String,String>> mapping = new HashMap<>();
 
+    public Snitch()
+    {
+        System.out.println("A snitch!");
+    }
 
-    /**
-     * write the specified parameters to the Config object; we do not specify Config as the type to support a Config
-     * from any ClassLoader; the implementation must not directly access any fields of the Object, or cast it, but
-     * must use the reflection API to modify the state
-     */
-    void propagate(Object writeToConfig);
+    public String getRack(InetAddressAndPort endpoint)
+    {
+        return mapping.getOrDefault(endpoint, DEFAULT).left;
+    }
 
-    Object get(String fieldName);
-    String getString(String fieldName);
-    int getInt(String fieldName);
-    boolean has(long featureFlag);
+    public String getDatacenter(InetAddressAndPort endpoint)
+    {
+        return mapping.getOrDefault(endpoint, DEFAULT).right;
+    }
+
+    public static void assign(Map<InetAddressAndPort, Pair<String,String>> newMapping)
+    {
+        mapping = newMapping;
+    }
 }

@@ -23,7 +23,7 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
-import org.apache.cassandra.locator.SimpleSnitch;
+import org.apache.cassandra.utils.Pair;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -43,6 +43,9 @@ public class InstanceConfig implements IInstanceConfig
 
     public final int num;
     public int num() { return num; }
+
+    public Map<InetAddressAndPort, Pair<String,String>> networkToplogy = null;
+    public Map<InetAddressAndPort, Pair<String,String>> networkToplogy() { return networkToplogy; }
 
     public final UUID hostId;
     public UUID hostId() { return hostId; }
@@ -103,7 +106,7 @@ public class InstanceConfig implements IInstanceConfig
                 .set("memtable_heap_space_in_mb", 10)
                 .set("commitlog_sync", "batch")
                 .set("storage_port", 7012)
-                .set("endpoint_snitch", SimpleSnitch.class.getName())
+                .set("endpoint_snitch", Snitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
                         Collections.singletonMap("seeds", "127.0.0.1:7012")))
                 // required settings for dtest functionality
