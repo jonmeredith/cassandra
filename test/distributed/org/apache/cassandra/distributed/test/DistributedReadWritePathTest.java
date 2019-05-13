@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -335,6 +337,20 @@ public class DistributedReadWritePathTest extends DistributedTestBase
             readCount2 = readCount(cluster.get(2)) - readCount2;
             assertEquals(readCount1, readCount2);
             assertEquals(100, readCount1);
+        }
+    }
+
+    @Test
+    public void multipleRacksAndDCsTest() throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.build(4)
+                                           .withDC("dc0", 1) // defaults to rack r0
+                                           .withRack("dc1", "r0", 1)
+                                           .withRack("dc1", "r1", 1)
+                                           .withRack("dc1", "r2", 1)
+                                           .start()))
+        {
+
         }
     }
 

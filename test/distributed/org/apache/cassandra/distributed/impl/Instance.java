@@ -255,6 +255,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 mkdirs();
                 Config.setOverrideLoadConfig(() -> loadConfig(config));
+
+                assert config.networkTopology().get(config.broadcastAddressAndPort()) != null;
+                Snitch.assign(config.networkTopology());
+
                 DatabaseDescriptor.daemonInitialization();
 
                 DatabaseDescriptor.createAllDirectories();

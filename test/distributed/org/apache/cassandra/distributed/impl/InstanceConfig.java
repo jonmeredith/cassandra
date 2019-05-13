@@ -23,7 +23,7 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
-import org.apache.cassandra.locator.SimpleSnitch;
+import org.apache.cassandra.utils.Pair;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -43,6 +43,9 @@ public class InstanceConfig implements IInstanceConfig
 
     public final int num;
     public int num() { return num; }
+
+    private NetworkTopology networkToplogy;
+    public Map<InetAddressAndPort, Pair<String,String>> networkTopology() { return networkToplogy; }
 
     public final UUID hostId;
     public UUID hostId() { return hostId; }
@@ -70,6 +73,7 @@ public class InstanceConfig implements IInstanceConfig
     }
 
     private InstanceConfig(int num,
+                           NetworkTopology networkTopology,
                            String broadcast_address,
                            String listen_address,
                            String broadcast_rpc_address,
@@ -82,6 +86,7 @@ public class InstanceConfig implements IInstanceConfig
                            String initial_token)
     {
         this.num = num;
+        this.networkToplogy = networkTopology;
         this.hostId = java.util.UUID.randomUUID();
         this    .set("broadcast_address", broadcast_address)
                 .set("listen_address", listen_address)
@@ -103,7 +108,7 @@ public class InstanceConfig implements IInstanceConfig
                 .set("memtable_heap_space_in_mb", 10)
                 .set("commitlog_sync", "batch")
                 .set("storage_port", 7012)
-                .set("endpoint_snitch", SimpleSnitch.class.getName())
+                .set("endpoint_snitch", org.apache.cassandra.distributed.impl.Snitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
                         Collections.singletonMap("seeds", "127.0.0.1:7012")))
                 // required settings for dtest functionality
@@ -219,14 +224,14 @@ public class InstanceConfig implements IInstanceConfig
         return (String)params.get(name);
     }
 
-    public static InstanceConfig generate(int nodeNum, int subnet, File root, String token)
+    public static InstanceConfig generate(int nodeNum, String ipAddress, NetworkTopology networkToplogy, File root, String token)
     {
-        String ipPrefix = "127.0." + subnet + ".";
         return new InstanceConfig(nodeNum,
-                                  ipPrefix + nodeNum,
-                                  ipPrefix + nodeNum,
-                                  ipPrefix + nodeNum,
-                                  ipPrefix + nodeNum,
+                                  networkToplogy,
+                                  ipAddress,
+                                  ipAddress,
+                                  ipAddress,
+                                  ipAddress,
                                   String.format("%s/node%d/saved_caches", root, nodeNum),
                                   new String[] { String.format("%s/node%d/data", root, nodeNum) },
                                   String.format("%s/node%d/commitlog", root, nodeNum),

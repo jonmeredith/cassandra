@@ -27,6 +27,8 @@ public interface ICluster
 
     IInstance get(int i);
     IInstance get(InetAddressAndPort endpoint);
+    Stream<? extends IInstance> get(String dcName);
+    Stream<? extends IInstance> get(String dcName, String rackName);
     int size();
     Stream<? extends IInstance> stream();
     IMessageFilters filters();

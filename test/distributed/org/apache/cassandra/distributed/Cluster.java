@@ -20,8 +20,8 @@ package org.apache.cassandra.distributed;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.distributed.api.ICluster;
@@ -29,6 +29,7 @@ import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.IInvokableInstance;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.impl.Versions;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * A simple cluster supporting only the 'current' Cassandra version, offering easy access to the convenience methods
@@ -36,9 +37,10 @@ import org.apache.cassandra.distributed.impl.Versions;
  */
 public class Cluster extends AbstractCluster<IInvokableInstance> implements ICluster, AutoCloseable
 {
-    private Cluster(File root, Versions.Version version, List<InstanceConfig> configs, ClassLoader sharedClassLoader)
+    private Cluster(File root, Versions.Version version, List<InstanceConfig> configs,
+                    Map<Integer, Pair<String,String>> nodeIdToplogy, ClassLoader sharedClassLoader)
     {
-        super(root, version, configs, sharedClassLoader);
+        super(root, version, configs, nodeIdToplogy, sharedClassLoader);
     }
 
     protected IInvokableInstance newInstanceWrapper(int generation, Versions.Version version, InstanceConfig config)
@@ -46,9 +48,14 @@ public class Cluster extends AbstractCluster<IInvokableInstance> implements IClu
         return new Wrapper(generation, version, config);
     }
 
+    public static Builder<IInvokableInstance, Cluster> build()
+    {
+        return new Builder<>(Cluster::new);
+    }
+
     public static Builder<IInvokableInstance, Cluster> build(int nodeCount)
     {
-        return new Builder<>(nodeCount, Cluster::new);
+        return build().withNodes(nodeCount);
     }
 
     public static Cluster create(int nodeCount, Consumer<InstanceConfig> configUpdater) throws IOException
