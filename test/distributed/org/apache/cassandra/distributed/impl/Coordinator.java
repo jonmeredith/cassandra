@@ -50,37 +50,29 @@ public class Coordinator implements ICoordinator
     @Override
     public Object[][] execute(String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
     {
-        return instance.sync(() -> {
-            ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
-            CQLStatement prepared = QueryProcessor.getStatement(query, ClientState.forInternalCalls()).statement;
-            List<ByteBuffer> boundBBValues = new ArrayList<>();
-            for (Object boundValue : boundValues)
-            {
-                boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
-            }
+        ClientState clientState = ClientState.forInternalCalls();
+        CQLStatement prepared = QueryProcessor.getStatement(query, clientState).statement;
+        List<ByteBuffer> boundBBValues = new ArrayList<>();
+        ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
+        for (Object boundValue : boundValues)
+            boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
 
-            prepared.validate(QueryState.forInternalCalls().getClientState());
-            ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
-                                                 QueryOptions.create(consistencyLevel,
-                                                                     boundBBValues,
-                                                                     false,
-                                                                     Integer.MAX_VALUE,
-                                                                     null,
-                                                                     null,
-                                                                     Server.CURRENT_VERSION));
+        prepared.validate(QueryState.forInternalCalls().getClientState());
+        ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
+                                             QueryOptions.create(consistencyLevel,
+                                                                 boundBBValues,
+                                                                 false,
+                                                                 Integer.MAX_VALUE,
+                                                                 null,
+                                                                 null,
+                                                                 Server.CURRENT_VERSION));
 
-            if (res != null && res.kind == ResultMessage.Kind.ROWS)
-            {
-                return RowUtil.toObjects((ResultMessage.Rows) res);
-            }
-            else
-            {
-                return new Object[][]{};
-            }
-        }).call();
+        if (res != null && res.kind == ResultMessage.Kind.ROWS)
+            return RowUtil.toObjects((ResultMessage.Rows) res);
+        else
+            return new Object[][]{};
     }
 
-    @Override
     public Iterator<Object[]> executeWithPaging(String query, Enum<?> consistencyLevelOrigin, int pageSize, Object... boundValues)
     {
         if (pageSize <= 0)

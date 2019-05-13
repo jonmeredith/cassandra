@@ -326,6 +326,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 mkdirs();
 
+                assert config.networkTopology().contains(config.broadcastAddressAndPort());
+                DistributedTestSnitch.assign(config.networkTopology());
+
                 DatabaseDescriptor.setDaemonInitialized();
                 DatabaseDescriptor.createAllDirectories();
 
