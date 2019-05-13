@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.api;
 
 import java.util.Iterator;
+import java.util.UUID;
 
 // The cross-version API requires that a Coordinator can be constructed without any constructor arguments
 public interface ICoordinator
@@ -26,6 +27,8 @@ public interface ICoordinator
     // a bit hacky, but ConsistencyLevel draws in too many dependent classes, so we cannot have a cross-version
     // method signature that accepts ConsistencyLevel directly.  So we just accept an Enum<?> and cast.
     Object[][] execute(String query, Enum<?> consistencyLevel, Object... boundValues);
+
+    Object[][] executeTraced(UUID sessionId, String query, Enum<?> consistencyLevel, Object... boundValues);
 
     Iterator<Object[]> executeWithPaging(String query, Enum<?> consistencyLevel, int pageSize, Object... boundValues);
 }

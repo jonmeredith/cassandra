@@ -125,6 +125,7 @@ public class InboundConnectionInitiator
         ServerBootstrap bootstrap = initializer.settings.socketFactory
                                     .newServerBootstrap()
                                     .option(ChannelOption.SO_BACKLOG, 1 << 9)
+                                    .option(ChannelOption.SO_REUSEADDR, true)
                                     .childHandler(initializer);
 
         int socketReceiveBufferSizeInBytes = initializer.settings.socketReceiveBufferSizeInBytes;

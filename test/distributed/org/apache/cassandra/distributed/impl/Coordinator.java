@@ -23,6 +23,9 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -31,9 +34,12 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.repair.consistent.LocalSession;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.QueryPager;
+import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -70,6 +76,48 @@ public class Coordinator implements ICoordinator
                                                                      ProtocolVersion.V4,
                                                                      null),
                                                  System.nanoTime());
+
+            if (res != null && res.kind == ResultMessage.Kind.ROWS)
+            {
+                return RowUtil.toObjects((ResultMessage.Rows) res);
+            }
+            else
+            {
+                return new Object[][]{};
+            }
+        }).call();
+    }
+
+    @Override
+    public Object[][] executeTraced(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
+    {
+        return instance.sync(() -> {
+            ClientState clientState = makeFakeClientState();
+            CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
+            List<ByteBuffer> boundBBValues = new ArrayList<>();
+            ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
+            for (Object boundValue : boundValues)
+            {
+                boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
+            }
+
+            UUID traceSession = Tracing.instance.newSession(sessionId, null);
+
+            Tracing.instance.begin("request", ImmutableMap.of());
+
+
+            ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
+                                                 QueryOptions.create(consistencyLevel,
+                                                                     boundBBValues,
+                                                                     false,
+                                                                     Integer.MAX_VALUE,
+                                                                     null,
+                                                                     null,
+                                                                     ProtocolVersion.V4,
+                                                                     null),
+                                                 System.nanoTime());
+
+            Tracing.instance.stopSession();
 
             if (res != null && res.kind == ResultMessage.Kind.ROWS)
             {

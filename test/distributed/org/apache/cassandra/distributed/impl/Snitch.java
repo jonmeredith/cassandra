@@ -37,12 +37,12 @@ public class Snitch extends AbstractNetworkTopologySnitch
 
     public String getRack(InetAddressAndPort endpoint)
     {
-        return mapping.getOrDefault(endpoint, DEFAULT).left;
+        return mapping.getOrDefault(endpoint, DEFAULT).right;
     }
 
     public String getDatacenter(InetAddressAndPort endpoint)
     {
-        return mapping.getOrDefault(endpoint, DEFAULT).right;
+        return mapping.getOrDefault(endpoint, DEFAULT).left;
     }
 
     public static void assign(Map<InetAddressAndPort, Pair<String,String>> newMapping)

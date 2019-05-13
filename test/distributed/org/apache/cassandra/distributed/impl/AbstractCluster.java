@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -163,6 +164,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
         @Override
         public void receiveMessage(IMessage message)
+        {
+            IInvokableInstance delegate = this.delegate;
+            if (!isShutdown && delegate != null) // since we sync directly on the other node, we drop messages immediately if we are shutdown
+                delegate.receiveMessage(message);
+        }
+        @Override
+        public void receiveMessageWithTracing(IMessage message, UUID sessionId)
         {
             IInvokableInstance delegate = this.delegate;
             if (!isShutdown && delegate != null) // since we sync directly on the other node, we drop messages immediately if we are shutdown
@@ -445,7 +453,10 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
         private void setNetworkTopology(List<InstanceConfig> configs)
         {
-            int nodeIndex = 0;
+            int nodeNum = 0;
+
+            Map<Integer,InetAddressAndPort> nodeAddresses = configs.stream().collect(Collectors.toMap(c -> c.num(), c-> c.broadcastAddressAndPort()));
+
             Map<InetAddressAndPort, Pair<String,String>> mapping = new HashMap<>(nodeCount);
             if (topologyCounts != null)
             {
@@ -454,11 +465,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
                     int rackCount = e.getValue();
                     for (int i = 0; i < rackCount; i++)
                     {
-                        mapping.put(configs.get(nodeIndex).broadcastAddressAndPort(), e.getKey());
-                        nodeIndex++;
+                        nodeNum++;
+                        mapping.put(nodeAddresses.get(nodeNum), e.getKey());
                     }
                 }
-                assert nodeIndex == nodeCount : "Node count must match provided network topology";
+                assert nodeNum == nodeCount : "Node count must match provided network topology";
             }
             configs.forEach(c -> c.networkToplogy = mapping);
         }

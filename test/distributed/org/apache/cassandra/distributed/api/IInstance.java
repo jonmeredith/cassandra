@@ -42,6 +42,7 @@ public interface IInstance extends IIsolatedExecutor
     // these methods are not for external use, but for simplicity we leave them public and on the normal IInstance interface
     void startup(ICluster cluster);
     void receiveMessage(IMessage message);
+    void receiveMessageWithTracing(IMessage message, UUID sessionId);
 
     int getMessagingVersion();
     void setMessagingVersion(InetAddressAndPort endpoint, int version);
