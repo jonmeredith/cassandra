@@ -76,6 +76,8 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -217,14 +219,26 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public void receiveMessage(IMessage message)
     {
         sync(() -> {
+            TraceState traceState;
             try (DataInputBuffer in = new DataInputBuffer(message.bytes()))
             {
                 Message<?> messageIn = Message.serializer.deserialize(in, message.from(), message.version());
+                traceState = Tracing.instance.initializeFromMessage(messageIn.header);
+                if (traceState != null)
+                {
+                    Tracing.instance.set(traceState);
+                }
                 messageIn.verb().handler().doVerb((Message<Object>) messageIn);
             }
             catch (Throwable t)
             {
                 throw new RuntimeException("Exception occurred on node " + broadcastAddressAndPort(), t);
+            }
+
+            if (traceState != null)
+            {
+                Tracing.instance.doneWithNonLocalSession(traceState);
+                Tracing.instance.set(null);
             }
         }).run();
     }
@@ -312,6 +326,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     initializeRing(cluster);
                 }
+
+                StorageService.instance.ensureTraceKeyspace();
 
                 SystemKeyspace.finishStartup();
 
