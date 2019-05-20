@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.Future;
 
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -36,6 +38,7 @@ import org.apache.cassandra.service.pager.Pageable;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.service.pager.QueryPagers;
 import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -49,6 +52,26 @@ public class Coordinator implements ICoordinator
 
     @Override
     public Object[][] execute(String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
+    {
+        return instance.sync(() -> executeInternal(query, consistencyLevelOrigin, boundValues)).call();
+    }
+
+    public Future<Object[][]> asyncExecuteWithTracing(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
+    {
+        return instance.async(() -> {
+            try
+            {
+                Tracing.instance.newSession(sessionId);
+                return executeInternal(query, consistencyLevelOrigin, boundValues);
+            }
+            finally
+            {
+                Tracing.instance.stopSession();
+            }
+        }).call();
+    }
+
+    private Object[][] executeInternal(String query, Enum<?> consistencyLevelOrigin, Object[] boundValues)
     {
         ClientState clientState = ClientState.forInternalCalls();
         CQLStatement prepared = QueryProcessor.getStatement(query, clientState).statement;
@@ -73,6 +96,12 @@ public class Coordinator implements ICoordinator
             return new Object[][]{};
     }
 
+    public Object[][] executeWithTracing(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
+    {
+        return IsolatedExecutor.waitOn(asyncExecuteWithTracing(sessionId, query, consistencyLevelOrigin, boundValues));
+    }
+
+    @Override
     public Iterator<Object[]> executeWithPaging(String query, Enum<?> consistencyLevelOrigin, int pageSize, Object... boundValues)
     {
         if (pageSize <= 0)
