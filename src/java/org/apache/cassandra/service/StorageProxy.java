@@ -1257,24 +1257,32 @@ public class StorageProxy implements StorageProxyMBean
                                                  AbstractWriteResponseHandler<IMutation> handler)
     {
         Iterator<InetAddress> iter = targets.iterator();
-        InetAddress target = iter.next();
+        int forwarderIdx = ThreadLocalRandom.current().nextInt(targets.size());
+        InetAddress target = null;
 
         // Add the other destinations of the same message as a FORWARD_HEADER entry
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
             out.writeInt(targets.size() - 1);
-            while (iter.hasNext())
+            for (int targetIdx = 0; iter.hasNext(); targetIdx++)
             {
-                InetAddress destination = iter.next();
-                CompactEndpointSerializationHelper.serialize(destination, out);
-                int id = MessagingService.instance().addCallback(handler,
-                                                                 message,
-                                                                 destination,
-                                                                 message.getTimeout(),
-                                                                 handler.consistencyLevel,
-                                                                 true);
-                out.writeInt(id);
-                logger.trace("Adding FWD message to {}@{}", id, destination);
+                if (targetIdx == forwarderIdx)
+                {
+                    target = iter.next();
+                }
+                else
+                {
+                    InetAddress destination = iter.next();
+                    CompactEndpointSerializationHelper.serialize(destination, out);
+                    int id = MessagingService.instance().addCallback(handler,
+                                                                     message,
+                                                                     destination,
+                                                                     message.getTimeout(),
+                                                                     handler.consistencyLevel,
+                                                                     true);
+                    out.writeInt(id);
+                    logger.trace("Adding FWD message to {}@{}", id, destination);
+                }
             }
             message = message.withParameter(Mutation.FORWARD_TO, out.getData());
             // send the combined message + forward headers
