@@ -1291,9 +1291,12 @@ public class StorageProxy implements StorageProxyMBean
                                                  EndpointsForToken targets,
                                                  AbstractWriteResponseHandler<IMutation> handler)
     {
+        Replica target;
+
         if (targets.size() > 1)
         {
-            EndpointsForToken forwardToReplicas = targets.subList(1, targets.size());
+            target = targets.get(ThreadLocalRandom.current().nextInt(0, targets.size()));
+            EndpointsForToken forwardToReplicas = targets.filter(r -> r != target, targets.size());
 
             for (Replica replica : forwardToReplicas)
             {
@@ -1307,9 +1310,13 @@ public class StorageProxy implements StorageProxyMBean
 
             message = message.withForwardingTo(new ForwardToContainer(forwardToReplicas.endpointList(), messageIds));
         }
+        else
+        {
+            target = targets.get(0);
+        }
 
-        MessagingService.instance().sendWriteWithCallback(message, targets.get(0), handler, true);
-        logger.trace("Sending message to {}@{}", message.id(), targets.get(0));
+        MessagingService.instance().sendWriteWithCallback(message, target, handler, true);
+        logger.trace("Sending message to {}@{}", message.id(), target);
     }
 
     private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable)

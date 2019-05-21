@@ -23,12 +23,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Future;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.TracingUtil;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.UUIDGen;
@@ -39,7 +43,8 @@ public class MessageForwardingTest extends DistributedTestBase
     public void mutationsFordwardedToAllReplicasTest()
     {
         String originalTraceTimeout = TracingUtil.setWaitForTracingEventTimeoutSecs("1");
-        final int numInserts = 10;
+        final int numInserts = 100;
+        Map<InetAddressAndPort,Integer> forwardFromCounts = new HashMap<>();
         Map<InetAddressAndPort,Integer> commitCounts = new HashMap<>();
 
         try (Cluster cluster = init(Cluster.build()
@@ -49,14 +54,13 @@ public class MessageForwardingTest extends DistributedTestBase
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v text, PRIMARY KEY (pk, ck)) WITH compaction = { 'class':'LeveledCompactionStrategy', 'enabled':'false'}");
 
+            cluster.get("dc1").forEach(instance -> forwardFromCounts.put(instance.broadcastAddressAndPort(), 0));
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddressAndPort(), 0));
-            for (int i = 0; i < numInserts; i++)
-            {
+            Stream<Future<Object[][]>> inserts = IntStream.range(0, numInserts).mapToObj((idx) -> {
                 final UUID sessionId = UUIDGen.getTimeUUID();
-                cluster.coordinator(1).traceExecute(sessionId, "INSERT INTO " + KEYSPACE + ".tbl(pk,ck,v) VALUES (1, 1, 'x')", ConsistencyLevel.ALL);
-            }
-
-            System.out.println("commitCounts: " +  commitCounts);
+                return cluster.coordinator(1).asyncTraceExecute(sessionId, "INSERT INTO " + KEYSPACE + ".tbl(pk,ck,v) VALUES (1, 1, 'x')", ConsistencyLevel.ALL);
+            });
+            inserts.map(f -> IsolatedExecutor.waitOn(f)).count();
 
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddressAndPort(), 0));
             List<TracingUtil.TraceEntry> traces = TracingUtil.getTraces(cluster);
@@ -65,8 +69,15 @@ public class MessageForwardingTest extends DistributedTestBase
                 {
                     commitCounts.compute(traceEntry.source, (k, v) -> v + 1);
                 }
+                else if (traceEntry.activity.contains("Enqueuing forwarded write to "))
+                {
+                    forwardFromCounts.compute(traceEntry.source, (k, v) -> v + 1); // will NPE if unexpected endpoint
+                }
             });
 
+            // Check that each node in dc1 was the forwarder at least once.  There is a (1/3)^numInserts chance
+            // that the same node will be picked, but the odds of that are ~2e-48.
+            forwardFromCounts.forEach((source, count) -> Assert.assertTrue(source + " should have been randomized to forward messages", count > 0));
             commitCounts.forEach((source, count) -> Assert.assertEquals(source + " appending to commitlog traces", (long) numInserts, (long) count));
         }
         catch (IOException e)

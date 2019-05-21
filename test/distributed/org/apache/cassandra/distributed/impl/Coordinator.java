@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Future;
 
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -86,9 +87,9 @@ public class Coordinator implements ICoordinator
     }
 
     @Override
-    public Object[][] traceExecute(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
+    public Future<Object[][]> asyncTraceExecute(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
     {
-        return instance.sync(() -> {
+        return instance.async(() -> {
             try
             {
                 Tracing.instance.newSession(sessionId, Collections.emptyMap());
@@ -127,8 +128,13 @@ public class Coordinator implements ICoordinator
             }
         }).call();
     }
-
     @Override
+    public Object[][] traceExecute(UUID sessionId, String query, Enum<?> consistencyLevelOrigin, Object... boundValues)
+    {
+        return IsolatedExecutor.waitOn(asyncTraceExecute(sessionId, query, consistencyLevelOrigin, boundValues));
+    }
+
+        @Override
     public Iterator<Object[]> executeWithPaging(String query, Enum<?> consistencyLevelOrigin, int pageSize, Object... boundValues)
     {
         if (pageSize <= 0)

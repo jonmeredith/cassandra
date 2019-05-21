@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.api;
 
 import java.util.Iterator;
 import java.util.UUID;
+import java.util.concurrent.Future;
 
 // The cross-version API requires that a Coordinator can be constructed without any constructor arguments
 public interface ICoordinator
@@ -30,5 +31,6 @@ public interface ICoordinator
 
     Iterator<Object[]> executeWithPaging(String query, Enum<?> consistencyLevel, int pageSize, Object... boundValues);
 
+    Future<Object[][]> asyncTraceExecute(UUID sessionId, String query, Enum<?> consistencyLevel, Object... boundValues);
     Object[][] traceExecute(UUID sessionId, String query, Enum<?> consistencyLevel, Object... boundValues);
 }
