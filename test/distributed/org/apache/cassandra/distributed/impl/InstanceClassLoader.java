@@ -44,6 +44,8 @@ public class InstanceClassLoader extends URLClassLoader
             .map(Class::getName)
             .collect(Collectors.toSet());
 
+    // Classes that should be shared between instances - add any tooling needed for
+    // debugging/coverage/profiling here
     private static final Predicate<String> sharePackage = name ->
                name.startsWith("org.apache.cassandra.distributed.api.")
             || name.startsWith("sun.")
@@ -54,7 +56,8 @@ public class InstanceClassLoader extends URLClassLoader
             || name.startsWith("javax.")
             || name.startsWith("jdk.")
             || name.startsWith("netscape.")
-            || name.startsWith("org.xml.sax.");
+            || name.startsWith("org.xml.sax.")
+            || name.startsWith("com.yourkit.");
 
     private static final Predicate<String> shareClass = name -> sharePackage.apply(name) || sharedClassNames.contains(name);
 
@@ -63,16 +66,16 @@ public class InstanceClassLoader extends URLClassLoader
         InstanceClassLoader create(int id, URL[] urls, ClassLoader sharedClassLoader);
     }
 
-    private final int id;
     private final URL[] urls;
+    private final int generation; // used to help debug class loader leaks, by helping determine which classloaders should have been collected
     private final ClassLoader sharedClassLoader;
 
-    InstanceClassLoader(int id, URL[] urls, ClassLoader sharedClassLoader)
+    InstanceClassLoader(int generation, URL[] urls, ClassLoader sharedClassLoader)
     {
         super(urls, null);
-        this.id = id;
         this.urls = urls;
         this.sharedClassLoader = sharedClassLoader;
+        this.generation = generation;
     }
 
     @Override
@@ -109,7 +112,7 @@ public class InstanceClassLoader extends URLClassLoader
     public String toString()
     {
         return "InstanceClassLoader{" +
-               "id=" + id +
+               "generation=" + generation +
                ", urls=" + Arrays.toString(urls) +
                '}';
     }
