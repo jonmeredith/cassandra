@@ -23,6 +23,8 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.utils.ExecutorUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -112,9 +114,9 @@ public class PendingRangeCalculatorService
     }
 
     @VisibleForTesting
-    public void shutdownExecutor() throws InterruptedException
+    public void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
     {
         executor.shutdown();
-        executor.awaitTermination(60, TimeUnit.SECONDS);
+        ExecutorUtils.awaitTermination(timeout, units, executor);
     }
 }
