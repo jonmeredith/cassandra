@@ -28,6 +28,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.*;
+import static org.apache.cassandra.utils.ExecutorUtils.*;
 
 
 /**
@@ -114,12 +115,10 @@ public class StageManager
     }
 
     @VisibleForTesting
-    public static void shutdownAndWait() throws InterruptedException
+    public static void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
     {
-        for (Stage stage : Stage.values())
-            StageManager.stages.get(stage).shutdown();
-        for (Stage stage : Stage.values())
-            StageManager.stages.get(stage).awaitTermination(60, TimeUnit.SECONDS);
+        shutdown(StageManager.stages.values());
+        awaitTermination(timeout, units, StageManager.stages.values());
     }
 
     /**
@@ -155,4 +154,5 @@ public class StageManager
             return getQueue().size();
         }
     }
+
 }
