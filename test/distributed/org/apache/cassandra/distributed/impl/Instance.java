@@ -32,6 +32,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.concurrent.TimeoutException;
+import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 
 import org.slf4j.LoggerFactory;
 
@@ -82,10 +85,13 @@ import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
+
+import static java.util.concurrent.TimeUnit.MINUTES;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
@@ -385,25 +391,22 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     CompactionManager.instance::forceShutdown,
                     BatchlogManager.instance::shutdown,
                     HintsService.instance::shutdownBlocking,
-                    CommitLog.instance::shutdownBlocking,
-                    SecondaryIndexManager::shutdownExecutors,
-                    ColumnFamilyStore::shutdownFlushExecutor,
-                    ColumnFamilyStore::shutdownPostFlushExecutor,
-                    ColumnFamilyStore::shutdownReclaimExecutor,
-                    ColumnFamilyStore::shutdownPerDiskFlushExecutors,
-                    PendingRangeCalculatorService.instance::shutdownExecutor,
-                    BufferPool::shutdownLocalCleaner,
-                    Ref::shutdownReferenceReaper,
-                    Memtable.MEMORY_POOL::shutdown,
-                    ScheduledExecutors::shutdownAndWait,
-                    SSTableReader::shutdownBlocking
+                    () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
+                    () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
+                    () -> PendingRangeCalculatorService.instance.shutdownAndWait(1L, MINUTES),
+                    () -> BufferPool.shutdownLocalCleaner(1L, MINUTES),
+                    () -> Ref.shutdownReferenceReaper(1L, MINUTES),
+                    () -> Memtable.MEMORY_POOL.shutdown(1L, MINUTES),
+                    () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
+                    () -> SSTableReader.shutdownBlocking(1L, MINUTES)
             );
             error = parallelRun(error, executor,
+                                CommitLog.instance::shutdownBlocking,
                                 MessagingService.instance()::shutdown
             );
             error = parallelRun(error, executor,
-                                StageManager::shutdownAndWait,
-                                SharedExecutorPool.SHARED::shutdown
+                                () -> StageManager.shutdownAndWait(1L, MINUTES),
+                                () -> SharedExecutorPool.SHARED.shutdown(1L, MINUTES)
             );
 
             LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
@@ -413,6 +416,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         return CompletableFuture.runAsync(ThrowingRunnable.toRunnable(future::get), isolatedExecutor)
                                 .thenRun(super::shutdown);
+    }
+
+    private static void shutdownAndWait(List<ExecutorService> executors) throws TimeoutException, InterruptedException
+    {
+        ExecutorUtils.shutdownNow(executors);
+        ExecutorUtils.awaitTermination(1L, MINUTES, executors);
     }
 
     private static Throwable parallelRun(Throwable accumulate, ExecutorService runOn, ThrowingRunnable ... runnables)
