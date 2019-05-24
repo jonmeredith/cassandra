@@ -43,7 +43,7 @@ import org.apache.cassandra.utils.CoalescingStrategies.CoalescingStrategy;
 public class OutboundMessagingPool
 {
     @VisibleForTesting
-    static final long LARGE_MESSAGE_THRESHOLD = Long.getLong(Config.PROPERTY_PREFIX + "otcp_large_message_threshold", 1024 * 64);
+    public static final long LARGE_MESSAGE_THRESHOLD = Long.getLong(Config.PROPERTY_PREFIX + "otcp_large_message_threshold", 1024 * 64);
 
     private final ConnectionMetrics metrics;
     private final BackPressureState backPressureState;

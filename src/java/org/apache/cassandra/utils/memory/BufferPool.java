@@ -21,12 +21,15 @@ package org.apache.cassandra.utils.memory;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +39,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.BufferPoolMetrics;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -859,9 +863,10 @@ public class BufferPool
     }
 
     @VisibleForTesting
-    public static void shutdownLocalCleaner() throws InterruptedException
+    public static void shutdownLocalCleaner(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        EXEC.shutdown();
-        EXEC.awaitTermination(60, TimeUnit.SECONDS);
+        List<Object> executors = ImmutableList.of(EXEC);
+        ExecutorUtils.shutdownNow(executors);
+        ExecutorUtils.awaitTermination(timeout, unit, executors);
     }
 }
