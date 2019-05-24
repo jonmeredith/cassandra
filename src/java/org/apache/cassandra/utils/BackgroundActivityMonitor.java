@@ -28,6 +28,7 @@ import java.net.InetAddress;
 import java.util.StringTokenizer;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.gms.ApplicationState;
@@ -143,12 +144,16 @@ public class BackgroundActivityMonitor
         return 0.0;
     }
 
-    public void shutdown()
+    public void shutdown(long timeout, TimeUnit units) throws TimeoutException
     {
         reportThread.shutdown();
         try
         {
-            reportThread.awaitTermination(1L, TimeUnit.MINUTES);
+            reportThread.awaitTermination(timeout, units);
+            if (!reportThread.isTerminated())
+            {
+                throw new TimeoutException("background activity monitor not terminated");
+            }
         } catch (InterruptedException e)
         {
             throw new IllegalStateException();

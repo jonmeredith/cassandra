@@ -28,9 +28,12 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -839,9 +842,10 @@ public class BufferPool
     }
 
     @VisibleForTesting
-    public static void shutdownLocalCleaner() throws InterruptedException
+    public static void shutdownLocalCleaner(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        EXEC.shutdown();
-        EXEC.awaitTermination(60, TimeUnit.SECONDS);
+        List<Object> executors = ImmutableList.of(EXEC);
+        ExecutorUtils.shutdownNow(executors);
+        ExecutorUtils.awaitTermination(timeout, unit, executors);
     }
 }
