@@ -25,10 +25,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.*;
-
 
 /**
  * This class manages executor services for Messages recieved: each Message requests
@@ -114,12 +114,10 @@ public class StageManager
     }
 
     @VisibleForTesting
-    public static void shutdownAndWait() throws InterruptedException
+    public static void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
     {
-        for (Stage stage : Stage.values())
-            StageManager.stages.get(stage).shutdown();
-        for (Stage stage : Stage.values())
-            StageManager.stages.get(stage).awaitTermination(60, TimeUnit.SECONDS);
+        ExecutorUtils.shutdown(StageManager.stages.values());
+        ExecutorUtils.awaitTermination(timeout, units, StageManager.stages.values());
     }
 
     /**
