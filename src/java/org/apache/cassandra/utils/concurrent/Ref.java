@@ -31,6 +31,9 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +48,7 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemory;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -705,14 +709,12 @@ public final class Ref<T> implements RefCounted<T>
     }
 
     @VisibleForTesting
-    public static void shutdownReferenceReaper() throws InterruptedException
+    public static void shutdownReferenceReaper(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        EXEC.shutdown();
-        EXEC.awaitTermination(60, TimeUnit.SECONDS);
-        if (STRONG_LEAK_DETECTOR != null)
-        {
-            STRONG_LEAK_DETECTOR.shutdownNow();
-            STRONG_LEAK_DETECTOR.awaitTermination(60, TimeUnit.SECONDS);
-        }
+        Collection<?> executors = STRONG_LEAK_DETECTOR == null ?
+                                  ImmutableList.of(EXEC) :
+                                  ImmutableList.of(EXEC, STRONG_LEAK_DETECTOR);
+        ExecutorUtils.shutdownNow(executors);
+        ExecutorUtils.awaitTermination(timeout, unit, executors);
     }
 }
