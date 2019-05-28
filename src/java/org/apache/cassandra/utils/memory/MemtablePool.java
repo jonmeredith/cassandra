@@ -19,6 +19,7 @@
 package org.apache.cassandra.utils.memory;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -68,11 +69,11 @@ public abstract class MemtablePool
 
     public abstract boolean needToCopyOnHeap();
 
-    @VisibleForTesting
-    public void shutdown() throws InterruptedException
+    public void shutdown(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        cleaner.shutdown();
-        cleaner.awaitTermination(60, TimeUnit.SECONDS);
+        cleaner.shutdownNow();
+        if (!cleaner.awaitTermination(timeout, unit))
+            throw new TimeoutException();
     }
 
     public abstract MemtableAllocator newAllocator();

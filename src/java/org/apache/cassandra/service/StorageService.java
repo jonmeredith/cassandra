@@ -1401,9 +1401,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return bgMonitor.getSeverity(endpoint);
     }
 
-    public void shutdownBGMonitor()
+    public void shutdownBGMonitor(long timeout, TimeUnit units) throws TimeoutException
     {
-        bgMonitor.shutdown();
+        bgMonitor.shutdown(timeout, units);
     }
 
     /**
