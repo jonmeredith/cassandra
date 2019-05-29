@@ -261,8 +261,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             try
             {
                 mkdirs();
-
                 Config.setOverrideLoadConfig(() -> loadConfig(config));
+
+                assert config.networkTopology().get(config.broadcastAddressAndPort()) != null;
+                Snitch.assign(config.networkTopology());
+
                 DatabaseDescriptor.setDaemonInitialized();
                 DatabaseDescriptor.createAllDirectories();
 
