@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -29,6 +30,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.distributed.impl.AbstractCluster;
+import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 
 public class DistributedTestBase
 {
@@ -41,10 +43,28 @@ public class DistributedTestBase
 
     public static String KEYSPACE = "distributed_test_keyspace";
 
+    public static void nettyNativeLibraryWorkaround()
+    {
+        System.setProperty("cassandra.disable_clibrary", "true");
+        System.setProperty("cassandra.disable_tcactive_openssl", "true");
+        System.setProperty("io.netty.transport.noNative", "true");
+
+        // Make sure the 'process reaper' thread is initially created under the main classloader,
+        // otherwise it gets created with the contextClassLoader pointing to an InstanceClassLoader
+        // which prevents it from being garbage collected.
+        IsolatedExecutor.ThrowingRunnable.toRunnable(() -> new ProcessBuilder().command("true").start().waitFor()).run();
+    }
+
     @BeforeClass
     public static void setup()
     {
         System.setProperty("org.apache.cassandra.disable_mbean_registration", "true");
+        nettyNativeLibraryWorkaround();
+    }
+
+    static String withKeyspace(String replaceIn)
+    {
+        return String.format(replaceIn, KEYSPACE);
     }
 
     protected static <C extends AbstractCluster<?>> C init(C cluster)

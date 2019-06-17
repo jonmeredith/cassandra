@@ -35,9 +35,6 @@ import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.classic.LoggerContext;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
 import org.apache.cassandra.concurrent.StageManager;
@@ -390,8 +387,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 SharedExecutorPool.SHARED::shutdown
             );
 
-            LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
-            loggerContext.stop();
             Throwables.maybeFail(error);
         }).apply(isolatedExecutor);
 
