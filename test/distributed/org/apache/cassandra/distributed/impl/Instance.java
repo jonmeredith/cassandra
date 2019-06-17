@@ -34,6 +34,7 @@ import java.util.function.BiPredicate;
 import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.LoggerContext;
+import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
@@ -418,6 +419,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> MessagingService.instance().shutdown(1L, MINUTES, false, true)
             );
             error = parallelRun(error, executor,
+                                () -> GlobalEventExecutor.INSTANCE.awaitInactivity(1l, MINUTES),
                                 () -> StageManager.shutdownAndWait(1L, MINUTES),
                                 () -> SharedExecutorPool.SHARED.shutdown(1L, MINUTES)
             );
