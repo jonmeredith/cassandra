@@ -19,13 +19,11 @@ package org.apache.cassandra.db;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
-import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -55,6 +53,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 
@@ -74,7 +73,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public void start()
     {
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        MBeanWrapper mbs = MBeanWrapper.instance;
         try
         {
             mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
