@@ -35,7 +35,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor.InterruptibleRunnable;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
 
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
@@ -345,7 +344,7 @@ public final class Ref<T> implements RefCounted<T>
     @VisibleForTesting
     public static void shutdownReferenceReaper() throws InterruptedException
     {
-        EXEC.shutdown();
+        EXEC.shutdownNow();
         EXEC.awaitTermination(60, TimeUnit.SECONDS);
     }
 }
