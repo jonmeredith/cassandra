@@ -1818,6 +1818,10 @@
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <jvmarg value="-XX:MaxMetaspaceSize=256M" />
+      <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
+      <jvmarg value="-XX:+HeapDumpOnOutOfMemoryError" />
+      <jvmarg value="-XX:HeapDumpPath=build/test/oom.hprof" />
     </testmacro>
   </target>
 
