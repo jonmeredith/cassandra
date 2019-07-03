@@ -48,7 +48,9 @@ public class GossipTest extends DistributedTestBase
     public void nodeDownDuringMove() throws Throwable
     {
         int liveCount = 1;
+        System.setProperty("cassandra.ring_delay_ms", "5000"); // down from 30s default
         System.setProperty("cassandra.consistent.rangemovement", "false");
+        System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
         try (Cluster cluster = Cluster.create(2 + liveCount, EnumSet.of(Feature.GOSSIP)))
         {
             int fail = liveCount + 1;
