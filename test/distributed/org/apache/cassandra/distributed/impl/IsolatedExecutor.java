@@ -27,6 +27,7 @@ import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URLClassLoader;
+import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -41,11 +42,16 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 
 public class IsolatedExecutor implements IIsolatedExecutor
 {
+    private static final Logger logger = LoggerFactory.getLogger(IsolatedExecutor.class);
+
     final ExecutorService isolatedExecutor;
     private final String name;
     private final ClassLoader classLoader;
@@ -62,7 +68,6 @@ public class IsolatedExecutor implements IIsolatedExecutor
     public Future<Void> shutdown()
     {
         isolatedExecutor.shutdown();
-        ThrowingRunnable.toRunnable(((URLClassLoader) classLoader)::close).run();
         ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
                                                                   new LinkedBlockingQueue<Runnable>(),
                                                                   (Runnable r) -> {
@@ -72,7 +77,20 @@ public class IsolatedExecutor implements IIsolatedExecutor
                                                                       }
                                                                   );
         return CompletableFuture.runAsync(ThrowingRunnable.toRunnable(() -> isolatedExecutor.awaitTermination(60, TimeUnit.SECONDS)),
-                                          shutdownExecutor);
+                                          shutdownExecutor)
+        .thenRun(() -> {
+            try
+            {
+                System.out.println("@@@@@@ Closing " + name + " instance classloader");
+                logger.info("@@@@@@ Closing " + name + " instance classloader");
+                ((URLClassLoader) classLoader).close();
+                System.out.println("@@@@ then done");
+            }
+            catch (IOException ex)
+            {
+                System.out.println("@@@ I/O exception closing loader: " + ex.getCause());
+            }
+        });
     }
 
     public <O> CallableNoExcept<Future<O>> async(CallableNoExcept<O> call) { return () -> isolatedExecutor.submit(call); }

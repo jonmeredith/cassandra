@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.distributed.test;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -34,6 +36,19 @@ import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHO
 
 public class DistributedReadWritePathTest extends DistributedTestBase
 {
+    @AfterClass
+    public static void afterClass() throws Throwable
+    {
+        try
+        {
+            Thread.sleep(0);
+        }
+        catch (InterruptedException ex)
+        {
+            //;
+        }
+        ResourceLeakTest.dumpHeap("distrw", false);
+    }
 
     @Test
     public void coordinatorReadTest() throws Throwable
@@ -141,6 +156,7 @@ public class DistributedReadWritePathTest extends DistributedTestBase
         }
     }
 
+    @Ignore
     @Test
     public void writeWithSchemaDisagreement() throws Throwable
     {
@@ -171,6 +187,7 @@ public class DistributedReadWritePathTest extends DistributedTestBase
         }
     }
 
+    @Ignore
     @Test
     public void readWithSchemaDisagreement() throws Throwable
     {

@@ -19,10 +19,14 @@ package org.apache.cassandra.net;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -40,6 +44,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 class InboundSockets
 {
+    private static final Logger logger = LoggerFactory.getLogger(InboundSockets.class);
     /**
      * A simple struct to wrap up the components needed for each listening socket.
      */
@@ -119,7 +124,14 @@ class InboundSockets
                     closing.add(listen.close());
                 closing.add(connections.close());
                 new FutureCombiner(closing)
-                       .addListener(future -> executor.shutdownGracefully())
+                        .addListener(future -> logger.info("@@@@@@@@@@@@ InboundSockets.close listener"))
+                       .addListener(future -> {
+                           logger.info("@@@@@@@@@@@@ InboundSockets.close executor shutting down");
+                           executor.shutdownGracefully();
+                           logger.info("@@@@@@@@@@@@ InboundSockets.close executor awaiting for 60s");
+                           assert(executor.awaitTermination(60, TimeUnit.SECONDS));
+                           logger.info("@@@@@@@@@@@@ InboundSockets.close awaited");
+                       } )
                        .addListener(new PromiseNotifier<>(done));
             };
 

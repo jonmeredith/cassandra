@@ -288,7 +288,8 @@ public final class SSLFactory
             builder = SslContextBuilder.forClient().keyManager(kmf);
         }
 
-        builder.sslProvider(useOpenSsl ? SslProvider.OPENSSL : SslProvider.JDK);
+//        builder.sslProvider(useOpenSsl ? SslProvider.OPENSSL : SslProvider.JDK);
+        builder.sslProvider(SslProvider.JDK);
 
         // only set the cipher suites if the opertor has explicity configured values for it; else, use the default
         // for each ssl implemention (jdk or openssl)
