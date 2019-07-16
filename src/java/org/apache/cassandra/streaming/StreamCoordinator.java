@@ -19,6 +19,7 @@ package org.apache.cassandra.streaming;
 
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -339,6 +340,12 @@ public class StreamCoordinator
         public Collection<SessionInfo> getAllSessionInfo()
         {
             return sessionInfos.values();
+        }
+
+        @VisibleForTesting
+        public void shutdown()
+        {
+            streamSessions.values().forEach(ss -> ss.sessionFailed());
         }
     }
 }

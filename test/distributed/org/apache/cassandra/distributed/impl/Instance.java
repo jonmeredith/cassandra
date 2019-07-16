@@ -75,6 +75,9 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.StreamReceiveTask;
+import org.apache.cassandra.streaming.StreamTransferTask;
+import org.apache.cassandra.streaming.async.StreamingInboundHandler;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -397,11 +400,20 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
+
+            if (config.has(GOSSIP))
+            {
+                StorageService.instance.shutdownServer();
+            }
+
             error = parallelRun(error, executor,
                     () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
                     CompactionManager.instance::forceShutdown,
                     BatchlogManager.instance::shutdown,
                     HintsService.instance::shutdownBlocking,
+                    StreamingInboundHandler::shutdown,
+                    () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
+                    () -> StreamTransferTask.shutdownAndWait(1L, MINUTES),
                     () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
                     () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                     () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),

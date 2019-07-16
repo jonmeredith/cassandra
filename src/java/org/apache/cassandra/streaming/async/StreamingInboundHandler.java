@@ -20,7 +20,9 @@ package org.apache.cassandra.streaming.async;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import javax.annotation.Nullable;
@@ -61,11 +63,12 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingInboundHandler.class);
     private static final Function<SessionIdentifier, StreamSession> DEFAULT_SESSION_PROVIDER = sid -> StreamManager.instance.findSession(sid.from, sid.planId, sid.sessionIndex);
-
+    private static final List<StreamingInboundHandler> inboundHandlers = new CopyOnWriteArrayList<>();
     private final InetAddressAndPort remoteAddress;
     private final int protocolVersion;
 
     private final StreamSession session;
+    private Thread blockingIOThread;
 
     /**
      * A collection of {@link ByteBuf}s that are yet to be processed. Incoming buffers are first dropped into this
@@ -84,6 +87,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
         this.remoteAddress = remoteAddress;
         this.protocolVersion = protocolVersion;
         this.session = session;
+        inboundHandlers.add(this);
     }
 
     @Override
@@ -91,7 +95,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     public void handlerAdded(ChannelHandlerContext ctx)
     {
         buffers = new AsyncStreamingInputPlus(ctx.channel());
-        Thread blockingIOThread = new FastThreadLocalThread(new StreamDeserializingTask(DEFAULT_SESSION_PROVIDER, session, ctx.channel()),
+        blockingIOThread = new FastThreadLocalThread(new StreamDeserializingTask(DEFAULT_SESSION_PROVIDER, session, ctx.channel()),
                                                             String.format("Stream-Deserializer-%s-%s", remoteAddress.toString(), ctx.channel().id()));
         blockingIOThread.setDaemon(true);
         blockingIOThread.start();
@@ -113,6 +117,9 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
 
     void close()
     {
+        inboundHandlers.remove(this);
+        if (blockingIOThread != null)
+            blockingIOThread.interrupt();
         closed = true;
         buffers.requestClosure();
     }
@@ -265,5 +272,11 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
             this.planId = planId;
             this.sessionIndex = sessionIndex;
         }
+    }
+
+    public static void shutdown()
+    {
+        inboundHandlers.forEach(h -> h.close());
+        inboundHandlers.clear();
     }
 }
