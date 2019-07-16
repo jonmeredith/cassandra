@@ -55,7 +55,10 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
 import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 
@@ -82,6 +85,26 @@ public final class SSLFactory
 
     @VisibleForTesting
     static volatile boolean checkedExpiry = false;
+
+    // Isolate calls to OpenSsl.isAvailable to allow in-jvm dtests to disable tcnative openssl
+    // support.  It creates a circular reference that prevents the instance class loader from being
+    // garbage collected.
+    static public final boolean isOpenSslAvailable;
+    static
+    {
+        if (Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_tcactive_openssl"))
+        {
+            isOpenSslAvailable = false;
+        }
+        else
+        {
+            isOpenSslAvailable = OpenSsl.isAvailable();
+        }
+    }
+    public static boolean openSslIsAvailable()
+    {
+        return isOpenSslAvailable;
+    }
 
     /**
      * Cached references of SSL Contexts
@@ -233,7 +256,7 @@ public final class SSLFactory
     public static SslContext getOrCreateSslContext(EncryptionOptions options, boolean buildTruststore,
                                                    SocketType socketType) throws IOException
     {
-        return getOrCreateSslContext(options, buildTruststore, socketType, OpenSsl.isAvailable());
+        return getOrCreateSslContext(options, buildTruststore, socketType, openSslIsAvailable());
     }
 
     /**
@@ -381,32 +404,32 @@ public final class SSLFactory
      * Sanity checks all certificates to ensure we can actually load them
      */
     public static void validateSslCerts(EncryptionOptions.ServerEncryptionOptions serverOpts, EncryptionOptions clientOpts) throws IOException
-    {
-        try
-        {
-            // Ensure we're able to create both server & client SslContexts
-            if (serverOpts != null && serverOpts.enabled)
             {
-                createNettySslContext(serverOpts, true, SocketType.SERVER, OpenSsl.isAvailable());
-                createNettySslContext(serverOpts, true, SocketType.CLIENT, OpenSsl.isAvailable());
-            }
-        }
-        catch (Exception e)
-        {
-            throw new IOException("Failed to create SSL context using server_encryption_options!", e);
-        }
+                try
+                {
+                    // Ensure we're able to create both server & client SslContexts
+                    if (serverOpts != null && serverOpts.enabled)
+                    {
+                        createNettySslContext(serverOpts, true, SocketType.SERVER, openSslIsAvailable());
+                        createNettySslContext(serverOpts, true, SocketType.CLIENT, openSslIsAvailable());
+                    }
+                }
+                catch (Exception e)
+                {
+                    throw new IOException("Failed to create SSL context using server_encryption_options!", e);
+                }
 
-        try
-        {
-            // Ensure we're able to create both server & client SslContexts
-            if (clientOpts != null && clientOpts.enabled)
-            {
-                createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.SERVER, OpenSsl.isAvailable());
-                createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.CLIENT, OpenSsl.isAvailable());
-            }
-        }
-        catch (Exception e)
-        {
+                try
+                {
+                    // Ensure we're able to create both server & client SslContexts
+                    if (clientOpts != null && clientOpts.enabled)
+                    {
+                        createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.SERVER, openSslIsAvailable());
+                        createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.CLIENT, openSslIsAvailable());
+                    }
+                }
+                catch (Exception e)
+                {
             throw new IOException("Failed to create SSL context using client_encryption_options!", e);
         }
     }

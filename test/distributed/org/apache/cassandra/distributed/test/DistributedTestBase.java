@@ -45,6 +45,7 @@ public class DistributedTestBase
     public static void setup()
     {
         System.setProperty("org.apache.cassandra.disable_mbean_registration", "true");
+        System.setProperty("cassandra.disable_tcactive_openssl", "true");
     }
 
     static String withKeyspace(String replaceIn)
