@@ -19,6 +19,7 @@ package org.apache.cassandra.net;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -119,7 +120,10 @@ class InboundSockets
                     closing.add(listen.close());
                 closing.add(connections.close());
                 new FutureCombiner(closing)
-                       .addListener(future -> executor.shutdownGracefully())
+                       .addListener(future -> {
+                           executor.shutdownGracefully();
+                           executor.awaitTermination(60, TimeUnit.SECONDS);
+                       })
                        .addListener(new PromiseNotifier<>(done));
             };
 
