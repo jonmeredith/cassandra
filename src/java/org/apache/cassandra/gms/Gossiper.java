@@ -66,6 +66,8 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_SYN;
+import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction
@@ -2041,5 +2043,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         return true;
+    }
+
+
+    @VisibleForTesting
+    public void stopShutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    {
+        stop();
+        shutdown(executor);
+        awaitTermination(timeout, units, executor);
     }
 }
