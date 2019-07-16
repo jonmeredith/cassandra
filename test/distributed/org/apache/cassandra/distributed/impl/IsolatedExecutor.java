@@ -33,7 +33,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -41,6 +40,9 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.LoggerContext;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 
@@ -62,7 +64,6 @@ public class IsolatedExecutor implements IIsolatedExecutor
     public Future<Void> shutdown()
     {
         isolatedExecutor.shutdown();
-        ThrowingRunnable.toRunnable(((URLClassLoader) classLoader)::close).run();
         ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
                                                                   new LinkedBlockingQueue<Runnable>(),
                                                                   (Runnable r) -> {
@@ -72,7 +73,12 @@ public class IsolatedExecutor implements IIsolatedExecutor
                                                                       }
                                                                   );
         return CompletableFuture.runAsync(ThrowingRunnable.toRunnable(() -> isolatedExecutor.awaitTermination(60, TimeUnit.SECONDS)),
-                                          shutdownExecutor);
+                                          shutdownExecutor)
+                                .thenRun(() -> {
+                                    LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+                                    loggerContext.stop();
+                                })
+                                .thenRun(ThrowingRunnable.toRunnable(() -> ((URLClassLoader) classLoader).close()));
     }
 
     public <O> CallableNoExcept<Future<O>> async(CallableNoExcept<O> call) { return () -> isolatedExecutor.submit(call); }
