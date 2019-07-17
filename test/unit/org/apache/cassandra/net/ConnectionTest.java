@@ -574,7 +574,7 @@ public class ConnectionTest
             for (int i = 0 ; i < 1000 ; ++i)
                 outbound.enqueue(message);
 
-            outbound.close(true).get(10L, MINUTES);
+            outbound.close(true).get(10L, SECONDS);
         });
     }
 
