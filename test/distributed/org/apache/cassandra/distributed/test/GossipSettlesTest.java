@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -27,6 +28,7 @@ import org.apache.cassandra.distributed.Cluster;
 import static org.apache.cassandra.distributed.impl.InstanceConfig.GOSSIP;
 import static org.apache.cassandra.distributed.impl.InstanceConfig.NETWORK;
 
+@Ignore
 public class GossipSettlesTest extends DistributedTestBase
 {
 
