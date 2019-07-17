@@ -574,7 +574,9 @@ public class ConnectionTest
             for (int i = 0 ; i < 1000 ; ++i)
                 outbound.enqueue(message);
 
+            logger.info("testCloseIfEndpointDown closing with 10s timeout");
             outbound.close(true).get(10L, SECONDS);
+            logger.info("testCloseIfEndpointDown closed");
         });
     }
 
