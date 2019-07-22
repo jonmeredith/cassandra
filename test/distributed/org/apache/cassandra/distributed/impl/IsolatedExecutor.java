@@ -32,23 +32,30 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.LoggerContext;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 
 public class IsolatedExecutor implements IIsolatedExecutor
 {
     final ExecutorService isolatedExecutor;
+    private final String name;
     private final ClassLoader classLoader;
     private final Method deserializeOnInstance;
 
     IsolatedExecutor(String name, ClassLoader classLoader)
     {
+        this.name = name;
         this.isolatedExecutor = Executors.newCachedThreadPool(new NamedThreadFactory("isolatedExecutor", Thread.NORM_PRIORITY, classLoader, new ThreadGroup(name)));
         this.classLoader = classLoader;
         this.deserializeOnInstance = lookupDeserializeOneObject(classLoader);
@@ -57,9 +64,23 @@ public class IsolatedExecutor implements IIsolatedExecutor
     public Future<Void> shutdown()
     {
         isolatedExecutor.shutdown();
-        ThrowingRunnable.toRunnable(((URLClassLoader) classLoader)::close).run();
+        ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
+                                                                  new LinkedBlockingQueue<Runnable>(),
+                                                                  (Runnable r) -> {
+                                                                          Thread t = new Thread(r, name + "_shutdown");
+                                                                          t.setDaemon(true);
+                                                                          return t;
+                                                                      }
+                                                                  );
         return CompletableFuture.runAsync(ThrowingRunnable.toRunnable(() -> isolatedExecutor.awaitTermination(60, TimeUnit.SECONDS)),
-                                          Executors.newSingleThreadExecutor());
+                                          shutdownExecutor)
+                                .thenRun(() -> {
+                                    LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+                                    loggerContext.stop();
+                                })
+                                // Close the instance class loader after shutting down the isolatedExecutor and logging
+                                // in case error handling triggers loading additional classes
+                                .thenRun(ThrowingRunnable.toRunnable(() -> ((URLClassLoader) classLoader).close()));
     }
 
     public <O> CallableNoExcept<Future<O>> async(CallableNoExcept<O> call) { return () -> isolatedExecutor.submit(call); }
