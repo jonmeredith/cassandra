@@ -841,7 +841,7 @@ public class BufferPool
     @VisibleForTesting
     public static void shutdownLocalCleaner() throws InterruptedException
     {
-        EXEC.shutdown();
+        EXEC.shutdownNow();
         EXEC.awaitTermination(60, TimeUnit.SECONDS);
     }
 }

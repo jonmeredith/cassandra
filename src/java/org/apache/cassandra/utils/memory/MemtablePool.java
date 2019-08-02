@@ -71,7 +71,7 @@ public abstract class MemtablePool
     @VisibleForTesting
     public void shutdown() throws InterruptedException
     {
-        cleaner.shutdown();
+        cleaner.shutdownNow();
         cleaner.awaitTermination(60, TimeUnit.SECONDS);
     }
 
