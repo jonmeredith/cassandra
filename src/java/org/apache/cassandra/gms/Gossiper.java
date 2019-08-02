@@ -56,6 +56,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction
@@ -1808,4 +1810,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.info("No gossip backlog; proceeding");
     }
 
+    @VisibleForTesting
+    public void stopShutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    {
+        stop();
+        shutdown(executor);
+        awaitTermination(timeout, units, executor);
+    }
 }

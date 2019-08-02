@@ -34,9 +34,6 @@ import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.classic.LoggerContext;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
@@ -68,6 +65,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -87,6 +85,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
+
+import static java.util.concurrent.TimeUnit.MINUTES;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
@@ -405,11 +405,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
             error = parallelRun(error, executor,
-                    Gossiper.instance::stop,
+                    () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
                     CompactionManager.instance::forceShutdown,
                     BatchlogManager.instance::shutdown,
                     HintsService.instance::shutdownBlocking,
                     SecondaryIndexManager::shutdownExecutors,
+                    () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                     ColumnFamilyStore::shutdownFlushExecutor,
                     ColumnFamilyStore::shutdownPostFlushExecutor,
                     ColumnFamilyStore::shutdownReclaimExecutor,
@@ -432,8 +433,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 CommitLog.instance::shutdownBlocking
             );
 
-            LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
-            loggerContext.stop();
             Throwables.maybeFail(error);
         }).apply(isolatedExecutor);
 
