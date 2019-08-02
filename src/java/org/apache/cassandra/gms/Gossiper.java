@@ -62,6 +62,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
 
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
@@ -2041,5 +2043,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         return true;
+    }
+
+    @VisibleForTesting
+    public void stopShutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    {
+        stop();
+        shutdown(executor);
+        awaitTermination(timeout, units, executor);
     }
 }
