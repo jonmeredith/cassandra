@@ -76,22 +76,28 @@ public class IsolatedExecutor implements IIsolatedExecutor
             t.setDaemon(true);
             return t;
         };
-        ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
-                                                                  new LinkedBlockingQueue<Runnable>(),
-                                                                  threadFactory
-                                                                  );
-        return CompletableFuture.runAsync(ThrowingRunnable.toRunnable(() -> isolatedExecutor.awaitTermination(60, TimeUnit.SECONDS)),
-                                          shutdownExecutor)
-                                .thenRun(() -> {
-                                    // Shutdown logging last - this is not ideal as the logging subsystem is initialized
-                                    // outsize of this class, however doing it this way provides access to the full
-                                    // logging system while termination is taking place.
-                                    LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
-                                    loggerContext.stop();
-                                })
-                                // Close the instance class loader after shutting down the isolatedExecutor and logging
-                                // in case error handling triggers loading additional classes
-                                .thenRun(ThrowingRunnable.toRunnable(() -> ((URLClassLoader) classLoader).close()));
+        ExecutorService shutdownExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory(name + "_shutdown"));
+        return shutdownExecutor.submit(() -> {
+            try
+            {
+                isolatedExecutor.awaitTermination(60, TimeUnit.SECONDS);
+
+                // Shutdown logging last - this is not ideal as the logging subsystem is initialized
+                // outsize of this class, however doing it this way provides access to the full
+                // logging system while termination is taking place.
+                LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+                loggerContext.stop();
+
+                // Close the instance class loader after shutting down the isolatedExecutor and logging
+                // in case error handling triggers loading additional classes
+                ((URLClassLoader) classLoader).close();
+            }
+            finally
+            {
+                shutdownExecutor.shutdownNow();
+            }
+            return null;
+        });
     }
 
     public <O> CallableNoExcept<Future<O>> async(CallableNoExcept<O> call) { return () -> isolatedExecutor.submit(call); }
