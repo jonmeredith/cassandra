@@ -78,6 +78,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NanoTimeToCurrentTimeMillis;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 
@@ -408,9 +409,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
 
-            if (config.has(GOSSIP))
+            if (config.has(GOSSIP) || config.has(NETWORK))
             {
                 StorageService.instance.shutdownServer();
+
+                error = parallelRun(error, executor,
+                    () -> NanoTimeToCurrentTimeMillis.shutdown(MINUTES.toMillis(1L))
+                );
             }
 
             error = parallelRun(error, executor,
