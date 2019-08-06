@@ -87,21 +87,21 @@ public final class SSLFactory
     // Isolate calls to OpenSsl.isAvailable to allow in-jvm dtests to disable tcnative openssl
     // support.  It creates a circular reference that prevents the instance class loader from being
     // garbage collected.
-    static public final boolean isOpenSslAvailable;
+    static private final boolean openSslIsAvailable;
     static
     {
         if (Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_tcactive_openssl"))
         {
-            isOpenSslAvailable = false;
+            openSslIsAvailable = false;
         }
         else
         {
-            isOpenSslAvailable = OpenSsl.isAvailable();
+            openSslIsAvailable = OpenSsl.isAvailable();
         }
     }
     public static boolean openSslIsAvailable()
     {
-        return isOpenSslAvailable;
+        return openSslIsAvailable;
     }
 
     /**
