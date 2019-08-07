@@ -424,10 +424,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     StorageService.instance::shutdownBGMonitor,
                     Ref::shutdownReferenceReaper,
                     Memtable.MEMORY_POOL::shutdown,
-                    ScheduledExecutors::shutdownAndWait,
                     SSTableReader::shutdownBlocking
             );
             error = parallelRun(error, executor,
+                                ScheduledExecutors::shutdownAndWait,
                                 CommitLog.instance::shutdownBlocking,
                                 MessagingService.instance()::shutdown
             );
