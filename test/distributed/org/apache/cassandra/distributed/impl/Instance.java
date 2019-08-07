@@ -45,7 +45,9 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
+import org.apache.cassandra.db.BatchlogManager;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -170,6 +172,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).run();
     }
 
+    // unnecessary if registerMockMessaging used
+    private void registerFilter(ICluster cluster)
+    {
+//        MessagingService.instance().outboundSink.add((message, to) -> cluster.filters().permit(this, cluster.get(to), message.verb().id));
+    }
     private void registerMockMessaging(ICluster cluster)
     {
         BiConsumer<InetAddressAndPort, IMessage> deliverToInstance = (to, message) -> cluster.get(to).receiveMessage(message);
@@ -288,8 +295,28 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     throw new RuntimeException(e);
                 }
 
-                initializeRing(cluster);
-                registerMockMessaging(cluster);
+                if (config.has(NETWORK))
+                {
+                    registerFilter(cluster);
+                    MessagingService.instance().listen();
+                }
+                else
+                {
+                    // Even though we don't use MessagingService, access the static SocketFactory
+                    // instance here so that we start the static event loop state
+//                    -- not sure what that means?  SocketFactory.instance.getClass();
+                    registerMockMessaging(cluster);
+                }
+
+                // TODO: this is more than just gossip
+                if (config.has(GOSSIP))
+                {
+                    StorageService.instance.initServer();
+                }
+                else
+                {
+                    initializeRing(cluster);
+                }
 
                 SystemKeyspace.finishStartup();
 
@@ -380,14 +407,19 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
+
+            if (config.has(GOSSIP))
+            {
+                StorageService.instance.shutdownServer();
+            }
+
             error = parallelRun(error, executor,
                     () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
                     CompactionManager.instance::forceShutdown,
+                    BatchlogManager::shutdown,
+                    () -> HintedHandOffManager.instance.shutdownAndWait(1L, MINUTES),
                     () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
-                    CommitLog.instance::shutdownBlocking,
-                    ColumnFamilyStore::shutdownFlushExecutor,
-                    ColumnFamilyStore::shutdownPostFlushExecutor,
-                    ColumnFamilyStore::shutdownReclaimExecutor,
+                    () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
                     PendingRangeCalculatorService.instance::shutdownExecutor,
                     StorageService.instance::shutdownBGMonitor,
                     Ref::shutdownReferenceReaper,
@@ -396,6 +428,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     SSTableReader::shutdownBlocking
             );
             error = parallelRun(error, executor,
+                                CommitLog.instance::shutdownBlocking,
                                 MessagingService.instance()::shutdown
             );
             error = parallelRun(error, executor,

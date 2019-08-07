@@ -442,6 +442,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
     public void close()
     {
         FBUtilities.waitOnFutures(instances.stream()
+                                           .filter(i -> !i.isShutdown())
                                            .map(IInstance::shutdown)
                                            .collect(Collectors.toList()),
                                   1L, TimeUnit.MINUTES);
