@@ -80,6 +80,8 @@ import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.apache.cassandra.distributed.impl.InstanceConfig.GOSSIP;
+import static org.apache.cassandra.distributed.impl.InstanceConfig.NETWORK;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
@@ -136,6 +138,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     }
 
     public void startup()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public boolean isShutdown()
     {
         throw new UnsupportedOperationException();
     }
@@ -365,6 +372,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     }
 
     public Future<Void> shutdown()
+    {
+        return shutdown(true);
+    }
+
+    public Future<Void> shutdown(boolean graceful)
     {
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;

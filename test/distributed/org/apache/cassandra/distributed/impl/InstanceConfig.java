@@ -36,6 +36,9 @@ import java.util.UUID;
 
 public class InstanceConfig implements IInstanceConfig
 {
+    public static long NETWORK = 1;
+    public static long GOSSIP  = 1 << 1;
+
     private static final Object NULL = new Object();
 
     public final int num;
@@ -44,6 +47,8 @@ public class InstanceConfig implements IInstanceConfig
     public final UUID hostId;
     public UUID hostId() { return hostId; }
     private final Map<String, Object> params = new TreeMap<>();
+
+    private long featureFlags;
 
     private volatile InetAddressAndPort broadcastAddressAndPort;
 
@@ -110,6 +115,17 @@ public class InstanceConfig implements IInstanceConfig
         this.num = copy.num;
         this.params.putAll(copy.params);
         this.hostId = copy.hostId;
+    }
+
+    public InstanceConfig with(long featureFlag)
+    {
+        featureFlags |= featureFlag;
+        return this;
+    }
+
+    public boolean has(long featureFlag)
+    {
+        return 0 != (featureFlags & featureFlag);
     }
 
     public InstanceConfig set(String fieldName, Object value)
@@ -200,13 +216,14 @@ public class InstanceConfig implements IInstanceConfig
         return (String)params.get(name);
     }
 
-    public static InstanceConfig generate(int nodeNum, File root, String token)
+    public static InstanceConfig generate(int nodeNum, int subnet, File root, String token)
     {
+        String ipPrefix = "127.0." + subnet + ".";
         return new InstanceConfig(nodeNum,
-                                  "127.0.0." + nodeNum,
-                                  "127.0.0." + nodeNum,
-                                  "127.0.0." + nodeNum,
-                                  "127.0.0." + nodeNum,
+                                  ipPrefix + nodeNum,
+                                  ipPrefix + nodeNum,
+                                  ipPrefix + nodeNum,
+                                  ipPrefix + nodeNum,
                                   String.format("%s/node%d/saved_caches", root, nodeNum),
                                   new String[] { String.format("%s/node%d/data", root, nodeNum) },
                                   String.format("%s/node%d/commitlog", root, nodeNum),
