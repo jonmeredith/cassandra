@@ -27,7 +27,6 @@ import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URLClassLoader;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -76,7 +75,8 @@ public class IsolatedExecutor implements IIsolatedExecutor
             t.setDaemon(true);
             return t;
         };
-        ExecutorService shutdownExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory(name + "_shutdown"));
+        ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
+                                                                  new LinkedBlockingQueue<Runnable>(), threadFactory);
         return shutdownExecutor.submit(() -> {
             try
             {

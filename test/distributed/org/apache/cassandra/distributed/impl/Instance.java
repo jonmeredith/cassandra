@@ -79,13 +79,17 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.StreamCoordinator;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NanoTimeToCurrentTimeMillis;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.apache.cassandra.distributed.impl.InstanceConfig.GOSSIP;
+import static org.apache.cassandra.distributed.impl.InstanceConfig.NETWORK;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
@@ -178,6 +182,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).run();
     }
 
+    // unnecessary if registerMockMessaging used
+    private void registerFilter(ICluster cluster)
+    {
+//        MessagingService.instance().outboundSink.add((message, to) -> cluster.filters().permit(this, cluster.get(to), message.verb().id));
+    }
     private void registerMockMessaging(ICluster cluster)
     {
         BiConsumer<InetAddressAndPort, IMessage> deliverToInstance = (to, message) -> cluster.get(to).receiveMessage(message);
@@ -259,7 +268,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     }
 
     @Override
-    public void startup(ICluster cluster, Set<Feature> with)
+    public void startup(ICluster cluster)
     {
         sync(() -> {
             try
@@ -293,17 +302,27 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     throw new RuntimeException(e);
                 }
-
-                // TODO: support each separately
-                if (with.contains(Feature.GOSSIP) || with.contains(Feature.NETWORK))
+                if (config.has(NETWORK))
                 {
-                    StorageService.instance.prepareToJoin();
-                    StorageService.instance.joinTokenRing(1000);
+                    registerFilter(cluster);
+                    MessagingService.instance().listen();
+                }
+                else
+                {
+                    // Even though we don't use MessagingService, access the static SocketFactory
+                    // instance here so that we start the static event loop state
+//                    -- not sure what that means?  SocketFactory.instance.getClass();
+                    registerMockMessaging(cluster);
+                }
+
+                // TODO: this is more than just gossip
+                if (config.has(GOSSIP))
+                {
+                    StorageService.instance.initServer();
                 }
                 else
                 {
                     initializeRing(cluster);
-                    registerMockMessaging(cluster);
                 }
 
                 SystemKeyspace.finishStartup();
@@ -402,25 +421,35 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
+
+            if (config.has(GOSSIP) || config.has(NETWORK))
+            {
+                StorageService.instance.shutdownServer();
+
+                error = parallelRun(error, executor,
+                                    () -> NanoTimeToCurrentTimeMillis.shutdown(MINUTES.toMillis(1L))
+                );
+            }
+
             error = parallelRun(error, executor,
-                    () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
-                    CompactionManager.instance::forceShutdown,
-                    BatchlogManager.instance::shutdown,
-                    HintsService.instance::shutdownBlocking,
-                    SecondaryIndexManager::shutdownExecutors,
-                    () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
-                    ColumnFamilyStore::shutdownFlushExecutor,
-                    ColumnFamilyStore::shutdownPostFlushExecutor,
-                    ColumnFamilyStore::shutdownReclaimExecutor,
-                    PendingRangeCalculatorService.instance::shutdownExecutor,
-                    BufferPool::shutdownLocalCleaner,
-                    StorageService.instance::shutdownBGMonitor,
-                    Ref::shutdownReferenceReaper,
-                    Memtable.MEMORY_POOL::shutdown,
-                    ScheduledExecutors::shutdownAndWait,
-                    SSTableReader::shutdownBlocking
+                                () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
+                                CompactionManager.instance::forceShutdown,
+                                BatchlogManager.instance::shutdown,
+                                HintsService.instance::shutdownBlocking,
+                                () -> StreamCoordinator.shutdownAndWait(1L, MINUTES),
+                                SecondaryIndexManager::shutdownExecutors,
+                                () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
+                                () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
+                                PendingRangeCalculatorService.instance::shutdownExecutor,
+                                BufferPool::shutdownLocalCleaner,
+                                StorageService.instance::shutdownBGMonitor,
+                                Ref::shutdownReferenceReaper,
+                                Memtable.MEMORY_POOL::shutdown,
+                                SSTableReader::shutdownBlocking
             );
             error = parallelRun(error, executor,
+                                ScheduledExecutors::shutdownAndWait,
+                                CommitLog.instance::shutdownBlocking,
                                 MessagingService.instance()::shutdown
             );
             error = parallelRun(error, executor,

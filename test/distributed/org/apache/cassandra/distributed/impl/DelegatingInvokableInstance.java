@@ -112,9 +112,9 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     }
 
     @Override
-    public void startup(ICluster cluster, Set<Feature> with)
+    public void startup(ICluster cluster)
     {
-        delegate().startup(cluster, with);
+        delegate().startup(cluster);
     }
 
     @Override

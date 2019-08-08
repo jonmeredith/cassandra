@@ -41,6 +41,9 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.distributed.impl.InstanceConfig.GOSSIP;
+import static org.apache.cassandra.distributed.impl.InstanceConfig.NETWORK;
+
 public class GossipTest extends DistributedTestBase
 {
 
@@ -51,7 +54,9 @@ public class GossipTest extends DistributedTestBase
         System.setProperty("cassandra.ring_delay_ms", "5000"); // down from 30s default
         System.setProperty("cassandra.consistent.rangemovement", "false");
         System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
-        try (Cluster cluster = Cluster.create(2 + liveCount, EnumSet.of(Feature.GOSSIP)))
+        try (Cluster cluster = Cluster.build(2 + liveCount)
+                                      .withConfig(config -> config.with(NETWORK).with(GOSSIP))
+                                      .createWithoutStarting())
         {
             int fail = liveCount + 1;
             int late = fail + 1;

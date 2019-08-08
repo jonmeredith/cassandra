@@ -43,7 +43,7 @@ public interface IInstance extends IIsolatedExecutor
     Future<Void> shutdown(boolean graceful);
 
     // these methods are not for external use, but for simplicity we leave them public and on the normal IInstance interface
-    void startup(ICluster cluster, Set<Feature> with);
+    void startup(ICluster cluster);
     void receiveMessage(IMessage message);
 
     int getMessagingVersion();
