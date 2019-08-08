@@ -22,6 +22,9 @@ import java.util.List;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.utils.MBeanWrapper;
 
+import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
+
 /**
  * A proxy class that implement the deprecated legacy HintedHandoffManagerMBean interface.
  *
