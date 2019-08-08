@@ -775,6 +775,8 @@ public final class MessagingService implements MessagingServiceMBean
                     // see https://issues.apache.org/jira/browse/CASSANDRA-10545
                     handleIOException(e);
                 }
+
+            connectionManagers.values().forEach(OutboundTcpConnectionPool::close);
         }
         catch (IOException e)
         {
@@ -1040,6 +1042,7 @@ public final class MessagingService implements MessagingServiceMBean
 
             try
             {
+                assert !server.isClosed();
                 server.close();
             }
             catch (IOException e)

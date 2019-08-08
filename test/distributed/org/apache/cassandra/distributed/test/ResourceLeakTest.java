@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.util.List;
 import javax.management.MBeanServer;
 
 import org.junit.Ignore;
@@ -35,8 +36,12 @@ import com.sun.management.HotSpotDiagnosticMXBean;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SigarLibrary;
+
+import static org.apache.cassandra.distributed.impl.InstanceConfig.GOSSIP;
+import static org.apache.cassandra.distributed.impl.InstanceConfig.NETWORK;
 
 /* Resource Leak Test - useful when tracking down issues with in-JVM framework cleanup.
  * All objects referencing the InstanceClassLoader need to be garbage collected or
@@ -55,7 +60,7 @@ public class ResourceLeakTest extends DistributedTestBase
 {
     // Parameters to adjust while hunting for leaks
     final int numTestLoops = 1;            // Set this value high to crash on leaks, or low when tracking down an issue.
-    final int numClusterNodes = 1;         // Number of nodes in the cluster
+    final int numClusterNodes = 2;         // Number of nodes in the cluster
     final boolean dumpEveryLoop = false;   // Dump heap & possibly files every loop
     final boolean dumpFileHandles = false; // Call lsof whenever dumping resources
     final boolean forceCollection = false; // Whether to explicitly force finalization/gc for smaller heap dumps
@@ -138,8 +143,9 @@ public class ResourceLeakTest extends DistributedTestBase
     {
         for (int loop = 0; loop < numTestLoops; loop++)
         {
-            try (Cluster cluster = init(Cluster.create(numClusterNodes)))
+            try (Cluster cluster = Cluster.build(numClusterNodes).withConfig(config -> config.with(GOSSIP).with(NETWORK)).start())
             {
+                init(cluster);
                 String tableName = "tbl" + loop;
                 cluster.schemaChange("CREATE TABLE " + KEYSPACE + "." + tableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
                 cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + "." + tableName + "(pk,ck,v) VALUES (0,0,0)", ConsistencyLevel.ALL);
