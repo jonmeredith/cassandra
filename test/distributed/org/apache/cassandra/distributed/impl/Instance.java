@@ -56,6 +56,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
@@ -182,15 +183,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).run();
     }
 
-    // unnecessary if registerMockMessaging used
-    private void registerFilter(ICluster cluster)
-    {
-//        MessagingService.instance().outboundSink.add((message, to) -> cluster.filters().permit(this, cluster.get(to), message.verb().id));
-    }
     private void registerMockMessaging(ICluster cluster)
     {
         BiConsumer<InetAddressAndPort, IMessage> deliverToInstance = (to, message) -> cluster.get(to).receiveMessage(message);
-        BiConsumer<InetAddressAndPort, IMessage> deliverToInstanceIfNotFiltered = cluster.filters().filter(deliverToInstance);
+        BiConsumer<InetAddressAndPort, IMessage> deliverToInstanceIfNotFiltered = (to, message) -> {
+            if (cluster.filters().permit(this, cluster.get(to), message.verb()))
+                deliverToInstance.accept(to, message);
+        };
 
         Map<InetAddress, InetAddressAndPort> addressAndPortMap = new HashMap<>();
         cluster.stream().forEach(instance -> {
@@ -204,6 +203,26 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         MessagingService.instance().addMessageSink(
                 new MessageDeliverySink(deliverToInstanceIfNotFiltered, addressAndPortMap::get));
+    }
+
+    // unnecessary if registerMockMessaging used
+    private void registerFilter(ICluster cluster)
+    {
+        IInstance instance = this;
+        MessagingService.instance().addMessageSink(new IMessageSink()
+        {
+            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress toAddress)
+            {
+                // Port is not passed in, so take a best guess at the destination port from this instance
+                IInstance to = cluster.get(InetAddressAndPort.getByAddressOverrideDefaults(toAddress, instance.config().broadcastAddressAndPort().port));
+                return cluster.filters().permit(instance, to, message.verb.ordinal());
+            }
+
+            public boolean allowIncomingMessage(MessageIn message, int id)
+            {
+                return true;
+            }
+        });
     }
 
     private class MessageDeliverySink implements IMessageSink
