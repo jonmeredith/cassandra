@@ -20,7 +20,6 @@ package org.apache.cassandra.distributed.api;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Future;
 
