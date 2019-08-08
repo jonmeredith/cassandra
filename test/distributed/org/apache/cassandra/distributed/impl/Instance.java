@@ -81,6 +81,7 @@ import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamCoordinator;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NanoTimeToCurrentTimeMillis;
@@ -453,6 +454,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 BatchlogManager.instance::shutdown,
                                 HintsService.instance::shutdownBlocking,
                                 () -> StreamCoordinator.shutdownAndWait(1L, MINUTES),
+                                () -> StreamSession.shutdownAndWait(1L, MINUTES),
                                 SecondaryIndexManager::shutdownExecutors,
                                 () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
