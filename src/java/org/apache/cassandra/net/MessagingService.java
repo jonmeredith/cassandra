@@ -1067,7 +1067,9 @@ public final class MessagingService implements MessagingServiceMBean
         // dirty hack for clean shutdown on OSX w/ Java >= 1.8.0_20
         // see https://bugs.openjdk.java.net/browse/JDK-8050499
         if ((!"Unknown error: 316".equals(e.getMessage()) || !"Mac OS X".equals(System.getProperty("os.name"))) &&
-            !"Thread signal failed".equals(e.getMessage()))
+            !"Thread signal failed".equals(e.getMessage()) && // handle shutdown for in-JVM dtests
+            !"Bad file descriptor".equals(e.getMessage()) &&
+            !"No such file or directory".equals(e.getMessage()))
             throw e;
     }
 
