@@ -1042,7 +1042,6 @@ public final class MessagingService implements MessagingServiceMBean
 
             try
             {
-                assert !server.isClosed();
                 server.close();
             }
             catch (IOException e)
