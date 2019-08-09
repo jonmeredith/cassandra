@@ -117,6 +117,7 @@ public class InstanceConfig implements IInstanceConfig
         this.num = copy.num;
         this.params.putAll(copy.params);
         this.hostId = copy.hostId;
+        this.featureFlags = copy.featureFlags;
     }
 
     public InstanceConfig with(Feature featureFlag)
