@@ -446,11 +446,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> StreamCoordinator.shutdownAndWait(1L, MINUTES),
                                 () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
-                                PendingRangeCalculatorService.instance::shutdownExecutor,
+                                () -> PendingRangeCalculatorService.instance.shutdownExecutor(1L, MINUTES),
                                 StorageService.instance::shutdownBGMonitor,
-                                Ref::shutdownReferenceReaper,
-                                Memtable.MEMORY_POOL::shutdown,
-                                SSTableReader::shutdownBlocking,
+                                () -> Ref.shutdownReferenceReaper(1L, MINUTES),
+                                () -> Memtable.MEMORY_POOL.shutdown(1L, MINUTES),
+                                () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 ScheduledExecutors::shutdownAndWait
             );
             error = parallelRun(error, executor,
