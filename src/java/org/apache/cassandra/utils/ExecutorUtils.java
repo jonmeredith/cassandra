@@ -64,13 +64,19 @@ public class ExecutorUtils
     public static void shutdown(Collection<? extends ExecutorService> executors)
     {
         for (ExecutorService executor : executors)
-            executor.shutdown();
+        {
+            if (executor != null)
+                executor.shutdown();
+        }
     }
 
     public static void shutdown(ExecutorService ... executors)
     {
         for (ExecutorService executor : executors)
-            executor.shutdown();
+        {
+            if (executor != null)
+                executor.shutdown();
+        }
     }
 
     public static void awaitTermination(long timeout, TimeUnit unit, Collection<?> executors) throws InterruptedException, TimeoutException
