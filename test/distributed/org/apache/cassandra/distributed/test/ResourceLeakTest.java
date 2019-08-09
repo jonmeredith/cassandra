@@ -40,12 +40,11 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.CassandraDaemon;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SigarLibrary;
 
-import static org.apache.cassandra.distributed.impl.InstanceConfig.GOSSIP;
-import static org.apache.cassandra.distributed.impl.InstanceConfig.NETWORK;
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 /* Resource Leak Test - useful when tracking down issues with in-JVM framework cleanup.
  * All objects referencing the InstanceClassLoader need to be garbage collected or
@@ -178,7 +177,7 @@ public class ResourceLeakTest extends DistributedTestBase
     @Test
     public void looperTest() throws Throwable
     {
-        doTest(1, config -> config.with(0));
+        doTest(1, config -> {});
         if (forceCollection)
         {
             System.runFinalization();

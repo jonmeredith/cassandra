@@ -36,9 +36,8 @@ import org.apache.cassandra.utils.progress.ProgressEventType;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.impl.ExecUtil.rethrow;
-import static org.apache.cassandra.distributed.impl.InstanceConfig.GOSSIP;
-import static org.apache.cassandra.distributed.impl.InstanceConfig.NETWORK;
-
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 @Ignore
 public class RepairTest extends DistributedTestBase
 {
