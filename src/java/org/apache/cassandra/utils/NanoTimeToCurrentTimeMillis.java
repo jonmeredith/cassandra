@@ -39,7 +39,7 @@ public class NanoTimeToCurrentTimeMillis
     @VisibleForTesting
     public static final Object TIMESTAMP_UPDATE = new Object();
 
-    private static Thread updater;
+    private static final Thread updater;
 
     /*
      * System.currentTimeMillis() is 25 nanoseconds. This is 2 nanoseconds (maybe) according to JMH.
