@@ -83,6 +83,8 @@ import org.apache.cassandra.utils.memory.MemtableAllocator;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
@@ -264,18 +266,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);
     }
 
-    public static void shutdownReclaimExecutor() throws InterruptedException
+    public static void shutdownExecutorsAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
     {
-        reclaimExecutor.shutdown();
-        reclaimExecutor.awaitTermination(60, TimeUnit.SECONDS);
-    }
-
-    public static void shutdownPerDiskFlushExecutors() throws InterruptedException
-    {
-        for (ExecutorService executorService : perDiskflushExecutors)
-            executorService.shutdown();
-        for (ExecutorService executorService : perDiskflushExecutors)
-            executorService.awaitTermination(60, TimeUnit.SECONDS);
+        List<ExecutorService> executors = ImmutableList.<ExecutorService>builder()
+                                          .add(perDiskflushExecutors)
+                                          .add(reclaimExecutor)
+                                          .add(postFlushExecutor)
+                                          .add(flushExecutor)
+                                          .build();
+        shutdown(executors);
+        awaitTermination(timeout, units, executors);
     }
 
     public void reload()
