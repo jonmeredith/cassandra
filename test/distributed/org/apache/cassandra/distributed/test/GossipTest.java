@@ -36,8 +36,8 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.distributed.impl.InstanceConfig.GOSSIP;
-import static org.apache.cassandra.distributed.impl.InstanceConfig.NETWORK;
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class GossipTest extends DistributedTestBase
 {

@@ -90,8 +90,8 @@ import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static org.apache.cassandra.distributed.impl.InstanceConfig.GOSSIP;
-import static org.apache.cassandra.distributed.impl.InstanceConfig.NETWORK;
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
