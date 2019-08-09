@@ -65,7 +65,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     private final int protocolVersion;
 
     private final StreamSession session;
-    private Thread blockingIOThread;
+    private volatile Thread blockingIOThread;
     private static final ThreadGroup blockingIOThreadGroup = new ThreadGroup(NamedThreadFactory.globalPrefix()+"StreamingInboundBlockingIO");
     /**
      * A collection of {@link ByteBuf}s that are yet to be processed. Incoming buffers are first dropped into this
