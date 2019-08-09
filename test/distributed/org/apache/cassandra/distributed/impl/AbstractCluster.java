@@ -421,6 +421,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
     }
 
+
     private static void setupLogging(File root)
     {
         try

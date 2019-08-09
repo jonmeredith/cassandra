@@ -76,9 +76,9 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.async.StreamingInboundHandler;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
-import org.apache.cassandra.streaming.async.StreamingInboundHandler;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -418,24 +418,26 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             }
 
             error = parallelRun(error, executor,
-                    () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
-                    CompactionManager.instance::forceShutdown,
-                    BatchlogManager.instance::shutdown,
-                    HintsService.instance::shutdownBlocking,
-                    StreamingInboundHandler::shutdown,
-                    () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
-                    () -> StreamTransferTask.shutdownAndWait(1L, MINUTES),
-                    () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
-                    () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
-                    () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
-                    () -> PendingRangeCalculatorService.instance.shutdownAndWait(1L, MINUTES),
-                    () -> BufferPool.shutdownLocalCleaner(1L, MINUTES),
-                    () -> Ref.shutdownReferenceReaper(1L, MINUTES),
-                    () -> Memtable.MEMORY_POOL.shutdown(1L, MINUTES),
-                    () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
-                    () -> SSTableReader.shutdownBlocking(1L, MINUTES),
-                    () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor))
+                                () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
+                                CompactionManager.instance::forceShutdown,
+                                BatchlogManager.instance::shutdown,
+                                HintsService.instance::shutdownBlocking,
+                                StreamingInboundHandler::shutdown,
+                                () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
+                                () -> StreamTransferTask.shutdownAndWait(1L, MINUTES),
+                                () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
+                                () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
+                                () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
+                                () -> PendingRangeCalculatorService.instance.shutdownAndWait(1L, MINUTES),
+                                () -> BufferPool.shutdownLocalCleaner(1L, MINUTES),
+                                () -> Ref.shutdownReferenceReaper(1L, MINUTES),
+                                () -> Memtable.MEMORY_POOL.shutdown(1L, MINUTES),
+                                () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
+                                () -> SSTableReader.shutdownBlocking(1L, MINUTES),
+                                () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor)),
+                                () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES)
             );
+
             error = parallelRun(error, executor,
                                 CommitLog.instance::shutdownBlocking,
                                 () -> MessagingService.instance().shutdown(1L, MINUTES, false, true)

@@ -26,6 +26,8 @@ import java.nio.file.Path;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.util.List;
+import java.util.function.Consumer;
 import javax.management.MBeanServer;
 
 import org.junit.Ignore;
@@ -35,8 +37,15 @@ import com.sun.management.HotSpotDiagnosticMXBean;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.impl.InstanceConfig;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SigarLibrary;
+
+import static org.apache.cassandra.distributed.impl.InstanceConfig.GOSSIP;
+import static org.apache.cassandra.distributed.impl.InstanceConfig.NETWORK;
 
 /* Resource Leak Test - useful when tracking down issues with in-JVM framework cleanup.
  * All objects referencing the InstanceClassLoader need to be garbage collected or
@@ -55,7 +64,6 @@ public class ResourceLeakTest extends DistributedTestBase
 {
     // Parameters to adjust while hunting for leaks
     final int numTestLoops = 1;            // Set this value high to crash on leaks, or low when tracking down an issue.
-    final int numClusterNodes = 1;         // Number of nodes in the cluster
     final boolean dumpEveryLoop = false;   // Dump heap & possibly files every loop
     final boolean dumpFileHandles = false; // Call lsof whenever dumping resources
     final boolean forceCollection = false; // Whether to explicitly force finalization/gc for smaller heap dumps
@@ -134,12 +142,16 @@ public class ResourceLeakTest extends DistributedTestBase
         }
     }
 
-    void doTest() throws Throwable
+    void doTest(int numClusterNodes, Consumer<InstanceConfig> updater) throws Throwable
     {
         for (int loop = 0; loop < numTestLoops; loop++)
         {
-            try (Cluster cluster = init(Cluster.create(numClusterNodes)))
+            try (Cluster cluster = Cluster.build(numClusterNodes).withConfig(updater).start())
             {
+                if (cluster.get(1).config().has(GOSSIP)) // Wait for gossip to settle on the seed node
+                    cluster.get(1).runOnInstance(() -> Gossiper.waitToSettle());
+
+                init(cluster);
                 String tableName = "tbl" + loop;
                 cluster.schemaChange("CREATE TABLE " + KEYSPACE + "." + tableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
                 cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + "." + tableName + "(pk,ck,v) VALUES (0,0,0)", ConsistencyLevel.ALL);
@@ -166,7 +178,7 @@ public class ResourceLeakTest extends DistributedTestBase
     @Test
     public void looperTest() throws Throwable
     {
-        doTest();
+        doTest(1, config -> config.with(0));
         if (forceCollection)
         {
             System.runFinalization();
@@ -174,5 +186,18 @@ public class ResourceLeakTest extends DistributedTestBase
             Thread.sleep(finalWaitMillis);
         }
         dumpResources("final");
+    }
+
+    @Test
+    public void looperGossipNetworkTest() throws Throwable
+    {
+        doTest(2, config -> config.with(GOSSIP).with(NETWORK));
+        if (forceCollection)
+        {
+            System.runFinalization();
+            System.gc();
+            Thread.sleep(finalWaitMillis);
+        }
+        dumpResources("final-gossip-network");
     }
 }

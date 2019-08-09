@@ -5453,6 +5453,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @VisibleForTesting
     public void shutdownServer()
     {
-        Runtime.getRuntime().removeShutdownHook(drainOnShutdown);
+        if (drainOnShutdown != null)
+        {
+            Runtime.getRuntime().removeShutdownHook(drainOnShutdown);
+        }
     }
 }

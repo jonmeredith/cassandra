@@ -510,7 +510,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
             long deadline = System.nanoTime() + units.toNanos(timeout);
             maybeFail(() -> new FutureCombiner(closing).get(timeout, units),
                       () -> {
-                          Collection<ExecutorService> inboundExecutors = Collections.synchronizedCollection(new ArrayList<ExecutorService>());
+                          List<ExecutorService> inboundExecutors = Collections.synchronizedList(new ArrayList<ExecutorService>());
                           inboundSockets.close(inboundExecutors::add).get();
                           ExecutorUtils.awaitTermination(1L, TimeUnit.MINUTES, inboundExecutors);
                       },
@@ -526,7 +526,8 @@ public final class MessagingService extends MessagingServiceMBeanImpl
         {
             callbacks.shutdownNow(false);
             List<Future<Void>> closing = new ArrayList<>();
-            closing.add(inboundSockets.close());
+            List<ExecutorService> inboundExecutors = Collections.synchronizedList(new ArrayList<ExecutorService>());
+            closing.add(inboundSockets.close(inboundExecutors::add));
             for (OutboundConnections pool : channelManagers.values())
                 closing.add(pool.close(false));
 
@@ -536,6 +537,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
                           if (shutdownExecutors)
                               shutdownExecutors(deadline);
                       },
+                      () -> ExecutorUtils.awaitTermination(timeout, units, inboundExecutors),
                       () -> callbacks.awaitTerminationUntil(deadline),
                       inboundSink::clear,
                       outboundSink::clear);
