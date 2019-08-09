@@ -19,9 +19,12 @@ package org.apache.cassandra.net;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -40,6 +43,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -505,7 +509,11 @@ public final class MessagingService extends MessagingServiceMBeanImpl
 
             long deadline = System.nanoTime() + units.toNanos(timeout);
             maybeFail(() -> new FutureCombiner(closing).get(timeout, units),
-                      () -> inboundSockets.close().get(),
+                      () -> {
+                          List<ExecutorService> inboundExecutors = Collections.synchronizedList(new ArrayList<ExecutorService>());
+                          inboundSockets.close(inboundExecutors::add).get();
+                          ExecutorUtils.awaitTermination(1L, TimeUnit.MINUTES, inboundExecutors);
+                      },
                       () -> {
                           if (shutdownExecutors)
                               shutdownExecutors(deadline);
@@ -518,7 +526,8 @@ public final class MessagingService extends MessagingServiceMBeanImpl
         {
             callbacks.shutdownNow(false);
             List<Future<Void>> closing = new ArrayList<>();
-            closing.add(inboundSockets.close());
+            List<ExecutorService> inboundExecutors = Collections.synchronizedList(new ArrayList<ExecutorService>());
+            closing.add(inboundSockets.close(inboundExecutors::add));
             for (OutboundConnections pool : channelManagers.values())
                 closing.add(pool.close(false));
 
@@ -528,6 +537,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
                           if (shutdownExecutors)
                               shutdownExecutors(deadline);
                       },
+                      () -> ExecutorUtils.awaitTermination(timeout, units, inboundExecutors),
                       () -> callbacks.awaitTerminationUntil(deadline),
                       inboundSink::clear,
                       outboundSink::clear);

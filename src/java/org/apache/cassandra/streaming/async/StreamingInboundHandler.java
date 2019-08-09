@@ -20,13 +20,12 @@ package org.apache.cassandra.streaming.async;
 
 import java.io.EOFException;
 import java.io.IOException;
+
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +35,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.FastThreadLocalThread;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.net.AsyncStreamingInputPlus.InputTimeoutException;
@@ -61,12 +61,12 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingInboundHandler.class);
     private static final Function<SessionIdentifier, StreamSession> DEFAULT_SESSION_PROVIDER = sid -> StreamManager.instance.findSession(sid.from, sid.planId, sid.sessionIndex);
-
     private final InetAddressAndPort remoteAddress;
     private final int protocolVersion;
 
     private final StreamSession session;
-
+    private Thread blockingIOThread;
+    private static final ThreadGroup blockingIOThreadGroup = new ThreadGroup(NamedThreadFactory.globalPrefix()+"StreamingInboundBlockingIO");
     /**
      * A collection of {@link ByteBuf}s that are yet to be processed. Incoming buffers are first dropped into this
      * structure, and then consumed.
@@ -91,7 +91,8 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     public void handlerAdded(ChannelHandlerContext ctx)
     {
         buffers = new AsyncStreamingInputPlus(ctx.channel());
-        Thread blockingIOThread = new FastThreadLocalThread(new StreamDeserializingTask(DEFAULT_SESSION_PROVIDER, session, ctx.channel()),
+        blockingIOThread = new FastThreadLocalThread(blockingIOThreadGroup,
+                                                     new StreamDeserializingTask(DEFAULT_SESSION_PROVIDER, session, ctx.channel()),
                                                             String.format("Stream-Deserializer-%s-%s", remoteAddress.toString(), ctx.channel().id()));
         blockingIOThread.setDaemon(true);
         blockingIOThread.start();
@@ -114,6 +115,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     void close()
     {
         closed = true;
+        blockingIOThread.interrupt();
         buffers.requestClosure();
     }
 
@@ -158,7 +160,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
         {
             try
             {
-                while (true)
+                while (!Thread.interrupted())
                 {
                     buffers.maybeIssueRead();
 
@@ -169,7 +171,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
                         if (closed)
                             return;
 
-                        Uninterruptibles.sleepUninterruptibly(400, TimeUnit.MILLISECONDS);
+                        Thread.sleep(400);
                     }
 
                     StreamMessage message = StreamMessage.deserialize(buffers, protocolVersion, null);
@@ -192,7 +194,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
                     session.messageReceived(message);
                 }
             }
-            catch (InputTimeoutException | EOFException e)
+            catch (InputTimeoutException | EOFException | InterruptedException e)
             {
                 // ignore
             }
@@ -265,5 +267,10 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
             this.planId = planId;
             this.sessionIndex = sessionIndex;
         }
+    }
+
+    public static void shutdown()
+    {
+        blockingIOThreadGroup.interrupt();
     }
 }
