@@ -401,8 +401,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
     }
 
-    @Override
     public Future<Void> shutdown()
+    {
+        return shutdown(true);
+    }
+
+    @Override
+    public Future<Void> shutdown(boolean graceful)
     {
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;

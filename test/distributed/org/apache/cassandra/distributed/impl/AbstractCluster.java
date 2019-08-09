@@ -153,12 +153,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
 
         @Override
-        public synchronized Future<Void> shutdown()
+        public synchronized Future<Void> shutdown(boolean graceful)
         {
             if (isShutdown)
                 throw new IllegalStateException();
             isShutdown = true;
-            Future<Void> future = delegate.shutdown();
+            Future<Void> future = delegate.shutdown(graceful);
             delegate = null;
             return future;
         }
