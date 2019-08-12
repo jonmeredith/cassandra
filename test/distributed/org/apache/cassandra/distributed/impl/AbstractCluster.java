@@ -153,6 +153,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         }
 
         @Override
+        public synchronized Future<Void> shutdown()
+        {
+            return shutdown(true);
+        }
+
+        @Override
         public synchronized Future<Void> shutdown(boolean graceful)
         {
             if (isShutdown)
