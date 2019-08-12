@@ -52,6 +52,7 @@ import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -244,6 +245,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 assert from.equals(lookupAddressAndPort.apply(messageOut.from));
                 InetAddressAndPort toFull = lookupAddressAndPort.apply(to);
                 int version = MessagingService.instance().getVersion(to);
+
+                out.writeInt(MessagingService.PROTOCOL_MAGIC);
+                out.writeInt(id);
+                long timestamp = System.currentTimeMillis();
+                out.writeInt((int) timestamp);
                 messageOut.serialize(out, version);
                 deliver.accept(toFull, new Message(messageOut.verb.ordinal(), out.toByteArray(), id, version, from));
             }
@@ -261,14 +267,32 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
     }
 
-    public void receiveMessage(IMessage message)
+    public void receiveMessage(IMessage imessage)
     {
         sync(() -> {
-            try (DataInputBuffer in = new DataInputBuffer(message.bytes()))
+            // Based on org.apache.cassandra.net.IncomingTcpConnection.receiveMessage
+            try (DataInputBuffer input = new DataInputBuffer(imessage.bytes()))
             {
-                MessageIn<?> messageIn = MessageIn.read(in, message.version(), message.id());
-                Runnable deliver = new MessageDeliveryTask(messageIn, message.id());
-                deliver.run();
+                int version = imessage.version();
+
+                MessagingService.validateMagic(input.readInt());
+                int id;
+                if (version < MessagingService.VERSION_20)
+                    id = Integer.parseInt(input.readUTF());
+                else
+                    id = input.readInt();
+                long currentTime = ApproximateTime.currentTimeMillis();
+                MessageIn message = MessageIn.read(input, version, id, MessageIn.readConstructionTime(imessage.from().address, input, currentTime));
+                if (message == null)
+                {
+                    // callback expired; nothing to do
+                    return;
+                }
+                if (version <= MessagingService.current_version)
+                {
+                    MessagingService.instance().receive(message, id);
+                }
+                // else ignore message
             }
             catch (Throwable t)
             {
