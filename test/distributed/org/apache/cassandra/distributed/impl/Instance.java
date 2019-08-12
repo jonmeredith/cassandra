@@ -242,6 +242,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 assert from.equals(lookupAddressAndPort.apply(messageOut.from));
                 InetAddressAndPort toFull = lookupAddressAndPort.apply(to);
                 int version = MessagingService.instance().getVersion(to);
+
+                out.writeInt(MessagingService.PROTOCOL_MAGIC);
+                out.writeInt(id);
+                long timestamp = System.currentTimeMillis();
+                out.writeInt((int) timestamp);
                 messageOut.serialize(out, version);
                 deliver.accept(toFull, new Message(messageOut.verb.ordinal(), out.toByteArray(), id, version, from));
             }
@@ -259,14 +264,43 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
     }
 
-    public void receiveMessage(IMessage message)
+    public void receiveMessage(IMessage imessage)
     {
         sync(() -> {
-            try (DataInputBuffer in = new DataInputBuffer(message.bytes()))
+            // Based on org.apache.cassandra.net.IncomingTcpConnection.receiveMessage
+            try (DataInputBuffer input = new DataInputBuffer(imessage.bytes()))
             {
-                MessageIn<?> messageIn = MessageIn.read(in, message.version(), message.id());
-                Runnable deliver = new MessageDeliveryTask(messageIn, message.id(), System.currentTimeMillis(), false);
-                deliver.run();
+                int version = imessage.version();
+
+                MessagingService.validateMagic(input.readInt());
+                int id;
+                if (version < MessagingService.VERSION_20)
+                    id = Integer.parseInt(input.readUTF());
+                else
+                    id = input.readInt();
+
+                long timestamp = System.currentTimeMillis();
+                boolean isCrossNodeTimestamp = false;
+                // make sure to readInt, even if cross_node_to is not enabled
+                int partial = input.readInt();
+                if (DatabaseDescriptor.hasCrossNodeTimeout())
+                {
+                    long crossNodeTimestamp = (timestamp & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
+                    isCrossNodeTimestamp = (timestamp != crossNodeTimestamp);
+                    timestamp = crossNodeTimestamp;
+                }
+
+                MessageIn message = MessageIn.read(input, version, id);
+                if (message == null)
+                {
+                    // callback expired; nothing to do
+                    return;
+                }
+                if (version <= MessagingService.current_version)
+                {
+                    MessagingService.instance().receive(message, id, timestamp, isCrossNodeTimestamp);
+                }
+                // else ignore message
             }
             catch (Throwable t)
             {
