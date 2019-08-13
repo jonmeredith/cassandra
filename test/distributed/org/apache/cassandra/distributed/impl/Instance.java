@@ -102,6 +102,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         this.config = config;
         InstanceIDDefiner.setInstanceId(config.num());
         FBUtilities.setBroadcastInetAddressAndPort(config.broadcastAddressAndPort());
+        // Set the config at instance creation, possibly before startup() has run on all other instances.
+        // setMessagingVersions below will call runOnInstance which will instantiate
+        // the MessagingService and dependencies preventing later changes to network parameters.
+        Config.setOverrideLoadConfig(() -> loadConfig(config));
     }
 
     @Override
@@ -262,9 +266,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
 
                 mkdirs();
-                Config.setOverrideLoadConfig(() -> loadConfig(config));
-                DatabaseDescriptor.daemonInitialization();
 
+                DatabaseDescriptor.daemonInitialization();
                 DatabaseDescriptor.createAllDirectories();
 
                 // We need to persist this as soon as possible after startup checks.
