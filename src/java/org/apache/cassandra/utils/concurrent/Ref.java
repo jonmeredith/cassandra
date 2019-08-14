@@ -346,7 +346,6 @@ public final class Ref<T> implements RefCounted<T>
     @VisibleForTesting
     public static void shutdownReferenceReaper(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        ExecutorUtils.shutdownNow(Arrays.asList(EXEC));
-        ExecutorUtils.awaitTermination(timeout, unit, Arrays.asList(EXEC));
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, EXEC);
     }
 }

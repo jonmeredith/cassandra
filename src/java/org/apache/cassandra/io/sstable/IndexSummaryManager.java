@@ -44,6 +44,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
@@ -265,7 +266,6 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     @VisibleForTesting
     public void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
     {
-        shutdown(executor);
-        awaitTermination(timeout, units, executor);
+        ExecutorUtils.shutdownAndWait(timeout, units, executor);
     }
 }

@@ -480,25 +480,25 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             error = parallelRun(error, executor,
                                 () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
                                 CompactionManager.instance::forceShutdown,
-                                BatchlogManager::shutdown,
+                                () -> BatchlogManager.shutdownAndWait(1L, MINUTES),
                                 () -> HintedHandOffManager.instance.shutdownAndWait(1L, MINUTES),
                                 () -> StreamCoordinator.shutdownAndWait(1L, MINUTES),
                                 () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
                                 () -> PendingRangeCalculatorService.instance.shutdownExecutor(1L, MINUTES),
-                                StorageService.instance::shutdownBGMonitor,
+                                () -> StorageService.instance.shutdownBGMonitorAndWait(1L, MINUTES),
                                 () -> Ref.shutdownReferenceReaper(1L, MINUTES),
-                                () -> Memtable.MEMORY_POOL.shutdown(1L, MINUTES),
+                                () -> Memtable.MEMORY_POOL.shutdownAndWait(1L, MINUTES),
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
-                                ScheduledExecutors::shutdownAndWait
+                                () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES)
             );
             error = parallelRun(error, executor,
                                 CommitLog.instance::shutdownBlocking,
                                 MessagingService.instance()::shutdown
             );
             error = parallelRun(error, executor,
-                                StageManager::shutdownAndWait,
-                                SharedExecutorPool.SHARED::shutdown
+                                () -> StageManager.shutdownAndWait(1L, MINUTES),
+                                () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
 
             Throwables.maybeFail(error);

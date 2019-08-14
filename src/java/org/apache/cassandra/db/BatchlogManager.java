@@ -52,6 +52,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -94,10 +95,9 @@ public class BatchlogManager implements BatchlogManagerMBean
         batchlogTasks.scheduleWithFixedDelay(runnable, StorageService.RING_DELAY, REPLAY_INTERVAL, TimeUnit.MILLISECONDS);
     }
 
-    public static void shutdown() throws InterruptedException
+    public static void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        batchlogTasks.shutdown();
-        batchlogTasks.awaitTermination(60, TimeUnit.SECONDS);
+        ExecutorUtils.shutdownAndWait(timeout, unit, batchlogTasks);
     }
 
     public int countAllBatches()

@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
@@ -1553,7 +1554,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void stopShutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
     {
         stop();
-        shutdown(executor);
-        awaitTermination(timeout, units, executor);
+        ExecutorUtils.shutdownAndWait(timeout, units, executor);
     }
 }

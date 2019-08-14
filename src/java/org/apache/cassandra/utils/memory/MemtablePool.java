@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 
@@ -63,11 +64,9 @@ public abstract class MemtablePool
     public abstract boolean needToCopyOnHeap();
 
     @VisibleForTesting
-    public void shutdown(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        cleaner.shutdownNow();
-        if (!cleaner.awaitTermination(timeout, unit))
-            throw new TimeoutException();
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, cleaner);
     }
 
 
