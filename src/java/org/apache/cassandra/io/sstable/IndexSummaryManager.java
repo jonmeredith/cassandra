@@ -264,8 +264,8 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     }
 
     @VisibleForTesting
-    public void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        ExecutorUtils.shutdownAndWait(timeout, units, executor);
+        ExecutorUtils.shutdownAndWait(timeout, unit, executor);
     }
 }

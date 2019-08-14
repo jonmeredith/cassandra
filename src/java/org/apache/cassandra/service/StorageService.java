@@ -4072,6 +4072,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         try
         {
+            /* not clear this is reasonable time, but propagated from prior embedded behaviour */
             BatchlogManager.shutdownAndWait(1L, MINUTES);
         }
         catch (TimeoutException t)

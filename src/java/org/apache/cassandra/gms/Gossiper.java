@@ -1551,9 +1551,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     }
 
     @VisibleForTesting
-    public void stopShutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    public void stopShutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         stop();
-        ExecutorUtils.shutdownAndWait(timeout, units, executor);
+        ExecutorUtils.shutdownAndWait(timeout, unit, executor);
     }
 }
