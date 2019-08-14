@@ -33,6 +33,7 @@ import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
@@ -1656,7 +1657,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void stopShutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
     {
         stop();
-        shutdown(executor);
-        awaitTermination(timeout, units, executor);
+        ExecutorUtils.shutdownAndWait(timeout, units, executor);
     }
 }

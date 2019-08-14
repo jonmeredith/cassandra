@@ -28,6 +28,7 @@ import com.codahale.metrics.Timer;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
+import org.apache.cassandra.utils.ExecutorUtils;
 
 
 /**
@@ -70,11 +71,9 @@ public abstract class MemtablePool
     public abstract boolean needToCopyOnHeap();
 
     @VisibleForTesting
-    public void shutdown(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        cleaner.shutdownNow();
-        if (!cleaner.awaitTermination(timeout, unit))
-            throw new TimeoutException();
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, cleaner);
     }
 
     public abstract MemtableAllocator newAllocator();
