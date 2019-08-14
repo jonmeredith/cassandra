@@ -351,9 +351,7 @@ public class StreamCoordinator
     @VisibleForTesting
     public static void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        List<ExecutorService> executors = ImmutableList.of(streamExecutor);
-        ExecutorUtils.shutdownNow(executors);
-        ExecutorUtils.awaitTermination(timeout, unit, executors);
+        ExecutorUtils.shutdownAndWait(timeout, unit, streamExecutor);
     }
 
 }

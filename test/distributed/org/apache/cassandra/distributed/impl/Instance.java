@@ -477,7 +477,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             error = parallelRun(error, executor,
                                 () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
                                 CompactionManager.instance::forceShutdown,
-                                BatchlogManager.instance::shutdown,
+                                () -> BatchlogManager.instance.shutdownAndWait(1L, MINUTES),
                                 HintsService.instance::shutdownBlocking,
                                 () -> StreamCoordinator.shutdownAndWait(1L, MINUTES),
                                 () -> StreamSession.shutdownAndWait(1L, MINUTES),
@@ -487,16 +487,16 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> PendingRangeCalculatorService.instance.shutdownExecutor(1L, MINUTES),
                                 () -> BufferPool.shutdownLocalCleaner(1L, MINUTES),
                                 () -> Ref.shutdownReferenceReaper(1L, MINUTES),
-                                () -> Memtable.MEMORY_POOL.shutdown(1L, MINUTES),
+                                () -> Memtable.MEMORY_POOL.shutdownAndWait(1L, MINUTES),
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES)
             );
             error = parallelRun(error, executor,
-                                ScheduledExecutors::shutdownAndWait,
+                                () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
                                 MessagingService.instance()::shutdown
             );
             error = parallelRun(error, executor,
-                                StageManager::shutdownAndWait,
-                                SharedExecutorPool.SHARED::shutdownAndWait
+                                () -> StageManager.shutdownAndWait(1L, MINUTES),
+                                () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
             error = parallelRun(error, executor,
                                 CommitLog.instance::shutdownBlocking
