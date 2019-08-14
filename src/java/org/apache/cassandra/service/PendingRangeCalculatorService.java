@@ -123,8 +123,8 @@ public class PendingRangeCalculatorService
     }
 
     @VisibleForTesting
-    public void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        ExecutorUtils.shutdownNowAndWait(timeout, units, executor);
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, executor);
     }
 }

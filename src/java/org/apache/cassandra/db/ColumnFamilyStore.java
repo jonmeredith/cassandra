@@ -226,12 +226,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);
     }
 
-    public static void shutdownExecutorsAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    public static void shutdownExecutorsAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         List<ExecutorService> executors = new ArrayList<>(perDiskflushExecutors.length + 3);
         Collections.addAll(executors, reclaimExecutor, postFlushExecutor, flushExecutor);
         Collections.addAll(executors, perDiskflushExecutors);
-        ExecutorUtils.shutdownAndWait(timeout, units, executors);
+        ExecutorUtils.shutdownAndWait(timeout, unit, executors);
     }
 
     public void reload()

@@ -166,9 +166,9 @@ public class StreamReceiveTask extends StreamTask
     }
 
     @VisibleForTesting
-    public static void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    public static void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         shutdown(executor);
-        awaitTermination(timeout, units, executor);
+        awaitTermination(timeout, unit, executor);
     }
 }
