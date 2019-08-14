@@ -144,9 +144,9 @@ public class BackgroundActivityMonitor
         return 0.0;
     }
 
-    public void shutdownAndWait(long timeout, TimeUnit units) throws TimeoutException, InterruptedException
+    public void shutdownAndWait(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException
     {
-        ExecutorUtils.shutdownAndWait(timeout, units, reportThread);
+        ExecutorUtils.shutdownAndWait(timeout, unit, reportThread);
     }
 
     public class BackgroundActivityReporter implements Runnable

@@ -230,9 +230,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);
     }
 
-    public static void shutdownExecutorsAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    public static void shutdownExecutorsAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        ExecutorUtils.shutdownAndWait(timeout, units, reclaimExecutor, postFlushExecutor, flushExecutor);
+        ExecutorUtils.shutdownAndWait(timeout, unit, reclaimExecutor, postFlushExecutor, flushExecutor);
     }
 
 
