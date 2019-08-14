@@ -228,14 +228,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static void shutdownExecutorsAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
     {
-        List<ExecutorService> executors = ImmutableList.<ExecutorService>builder()
-                                          .add(perDiskflushExecutors)
-                                          .add(reclaimExecutor)
-                                          .add(postFlushExecutor)
-                                          .add(flushExecutor)
-                                          .build();
-        shutdown(executors);
-        awaitTermination(timeout, units, executors);
+        List<ExecutorService> executors = new ArrayList<>(perDiskflushExecutors.length + 3);
+        Collections.addAll(executors, reclaimExecutor, postFlushExecutor, flushExecutor);
+        Collections.addAll(executors, perDiskflushExecutors);
+        ExecutorUtils.shutdownAndWait(timeout, units, executors);
     }
 
     public void reload()

@@ -423,7 +423,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             error = parallelRun(error, executor,
                                 () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
                                 CompactionManager.instance::forceShutdown,
-                                BatchlogManager.instance::shutdown,
+                                () -> BatchlogManager.instance.shutdownAndWait(1L, MINUTES),
                                 HintsService.instance::shutdownBlocking,
                                 StreamingInboundHandler::shutdown,
                                 () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
@@ -434,7 +434,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> PendingRangeCalculatorService.instance.shutdownAndWait(1L, MINUTES),
                                 () -> BufferPool.shutdownLocalCleaner(1L, MINUTES),
                                 () -> Ref.shutdownReferenceReaper(1L, MINUTES),
-                                () -> Memtable.MEMORY_POOL.shutdown(1L, MINUTES),
+                                () -> Memtable.MEMORY_POOL.shutdownAndWait(1L, MINUTES),
                                 () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor)),
@@ -448,7 +448,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             error = parallelRun(error, executor,
                                 () -> GlobalEventExecutor.INSTANCE.awaitInactivity(1l, MINUTES),
                                 () -> StageManager.shutdownAndWait(1L, MINUTES),
-                                () -> SharedExecutorPool.SHARED.shutdown(1L, MINUTES)
+                                () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
 
             Throwables.maybeFail(error);
