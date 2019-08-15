@@ -46,6 +46,7 @@ import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.Stage.MUTATION;
@@ -510,8 +511,8 @@ public final class MessagingService extends MessagingServiceMBeanImpl
             long deadline = System.nanoTime() + units.toNanos(timeout);
             maybeFail(() -> new FutureCombiner(closing).get(timeout, units),
                       () -> {
-                          List<ExecutorService> inboundExecutors = Collections.synchronizedList(new ArrayList<ExecutorService>());
-                          inboundSockets.close(inboundExecutors::add).get();
+                          List<ExecutorService> inboundExecutors = new ArrayList<>();
+                          inboundSockets.close(synchronizedList(inboundExecutors)::add).get();
                           ExecutorUtils.awaitTermination(1L, TimeUnit.MINUTES, inboundExecutors);
                       },
                       () -> {
@@ -526,7 +527,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
         {
             callbacks.shutdownNow(false);
             List<Future<Void>> closing = new ArrayList<>();
-            List<ExecutorService> inboundExecutors = Collections.synchronizedList(new ArrayList<ExecutorService>());
+            List<ExecutorService> inboundExecutors = synchronizedList(new ArrayList<ExecutorService>());
             closing.add(inboundSockets.close(inboundExecutors::add));
             for (OutboundConnections pool : channelManagers.values())
                 closing.add(pool.close(false));
