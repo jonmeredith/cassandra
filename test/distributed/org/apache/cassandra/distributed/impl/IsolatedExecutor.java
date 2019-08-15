@@ -45,6 +45,7 @@ import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.LoggerContext;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.utils.ExecutorUtils;
 
 public class IsolatedExecutor implements IIsolatedExecutor
 {
@@ -80,7 +81,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
         return shutdownExecutor.submit(() -> {
             try
             {
-                isolatedExecutor.awaitTermination(60, TimeUnit.SECONDS);
+                ExecutorUtils.awaitTermination(60, TimeUnit.SECONDS, isolatedExecutor);
 
                 // Shutdown logging last - this is not ideal as the logging subsystem is initialized
                 // outsize of this class, however doing it this way provides access to the full
