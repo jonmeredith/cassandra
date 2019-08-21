@@ -76,7 +76,8 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
 
         StreamDeserializer deserializer = null;
         SSTableMultiWriter writer = null;
-        try (CompressedInputStream cis = new CompressedInputStream(inputPlus, compressionInfo, ChecksumType.CRC32, cfs::getCrcCheckChance))
+        String streamThreadName = String.format("Compressed-Stream-Reader-%s-%d", session.peer, fileSeqNum);
+        try (CompressedInputStream cis = new CompressedInputStream(inputPlus, compressionInfo, ChecksumType.CRC32, cfs::getCrcCheckChance, streamThreadName))
         {
             TrackedDataInputPlus in = new TrackedDataInputPlus(cis);
             deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));

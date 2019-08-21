@@ -85,7 +85,8 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
      * @param source Input source to read compressed data from
      * @param info Compression info
      */
-    public CompressedInputStream(DataInputPlus source, CompressionInfo info, ChecksumType checksumType, DoubleSupplier crcCheckChanceSupplier)
+    public CompressedInputStream(DataInputPlus source, CompressionInfo info, ChecksumType checksumType,
+                                 DoubleSupplier crcCheckChanceSupplier, String threadName)
     {
         super(ByteBuffer.allocateDirect(info.parameters.chunkLength()));
         buffer.limit(buffer.position()); // force the buffer to appear "consumed" so that it triggers reBuffer on the first read
@@ -94,7 +95,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
         this.crcCheckChanceSupplier = crcCheckChanceSupplier;
         this.checksumType = checksumType;
 
-        new FastThreadLocalThread(new Reader(source, info, dataBuffer)).start();
+        new FastThreadLocalThread(new Reader(source, info, dataBuffer), threadName).start();
     }
 
     /**
