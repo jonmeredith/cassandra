@@ -190,7 +190,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
         }
     }
 
-    private static <T> T waitOn(Future<T> f)
+    public static <T> T waitOn(Future<T> f)
     {
         try
         {
