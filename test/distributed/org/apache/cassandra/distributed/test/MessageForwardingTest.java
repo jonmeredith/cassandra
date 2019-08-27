@@ -45,6 +45,7 @@ public class MessageForwardingTest extends DistributedTestBase
     {
         String originalTraceTimeout = TracingUtil.setWaitForTracingEventTimeoutSecs("1");
         final int numInserts = 100;
+        Map<InetAddress,Integer> forwardFromCounts = new HashMap<>();
         Map<InetAddress,Integer> commitCounts = new HashMap<>();
 
         try (Cluster cluster = init(Cluster.build()
@@ -59,7 +60,7 @@ public class MessageForwardingTest extends DistributedTestBase
             Stream<Future<Object[][]>> inserts = IntStream.range(0, numInserts).mapToObj((idx) ->
                 cluster.coordinator(1).asyncTraceExecute(sessionId, "INSERT INTO " + KEYSPACE + ".tbl(pk,ck,v) VALUES (1, 1, 'x')", ConsistencyLevel.ALL)
             );
-            inserts.map(f -> IsolatedExecutor.waitOn(f)).count();
+            inserts.map(f -> IsolatedExecutor.waitOn(f)).count();  // make sure all of the async trace sessions complete
 
             cluster.stream("dc1").forEach(instance -> forwardFromCounts.put(instance.broadcastAddressAndPort().address, 0));
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddressAndPort().address, 0));
@@ -69,7 +70,15 @@ public class MessageForwardingTest extends DistributedTestBase
                 {
                     commitCounts.compute(traceEntry.source, (k, v) -> v + 1);
                 }
+                else if (traceEntry.activity.contains("Enqueuing forwarded write to "))
+                {
+                    forwardFromCounts.compute(traceEntry.source, (k, v) -> v + 1); // will NPE if unexpected endpoint
+                }
             });
+
+            // Check that each node in dc1 was the forwarder at least once.  There is a (1/3)^numInserts chance
+            // that the same node will be picked, but the odds of that are ~2e-48.
+            forwardFromCounts.forEach((source, count) -> Assert.assertTrue(source + " should have been randomized to forward messages", count > 0));
             commitCounts.forEach((source, count) -> Assert.assertEquals(source + " appending to commitlog traces", (long) numInserts, (long) count));
         }
         catch (IOException e)
