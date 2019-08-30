@@ -1015,19 +1015,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         public void run()
         {
-            // mark writes older than the barrier as blocking progress, permitting them to exceed our memory limit
-            // if they are stuck waiting on it, then wait for them all to complete
-            writeBarrier.markBlocking();
-            writeBarrier.await();
-
-            // mark all memtables as flushing, removing them from the live memtable list
-            for (Memtable memtable : memtables)
-                memtable.cfs.data.markFlushing(memtable);
-
-            metric.memtableSwitchCount.inc();
-
             try
             {
+                // mark writes older than the barrier as blocking progress, permitting them to exceed our memory limit
+                // if they are stuck waiting on it, then wait for them all to complete
+                writeBarrier.markBlocking();
+                writeBarrier.await();
+
+                // mark all memtables as flushing, removing them from the live memtable list
+                for (Memtable memtable : memtables)
+                    memtable.cfs.data.markFlushing(memtable);
+
+                metric.memtableSwitchCount.inc();
+
                 // Flush "data" memtable with non-cf 2i first;
                 flushMemtable(memtables.get(0), true);
                 for (int i = 1; i < memtables.size(); i++)
@@ -1035,11 +1035,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             catch (Throwable t)
             {
+                postFlush.flushFailure = t; // set before inspecting so that postFlush task fails
                 JVMStabilityInspector.inspectThrowable(t);
-                postFlush.flushFailure = t;
             }
-            // signal the post-flush we've done our work
-            postFlush.latch.countDown();
+            finally
+            {
+                // signal the post-flush we've done our work or there was a failure
+                postFlush.latch.countDown();
+            }
         }
 
         public Collection<SSTableReader> flushMemtable(Memtable memtable, boolean flushNonCf2i)
