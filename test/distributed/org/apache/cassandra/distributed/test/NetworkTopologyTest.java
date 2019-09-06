@@ -49,7 +49,9 @@ public class NetworkTopologyTest extends DistributedTestBase
             Assert.assertEquals(4, cluster.stream("nearthere").count());
 
             Set<IInstance> expect = cluster.stream().collect(Collectors.toSet());
-            Set<IInstance> result = Stream.concat(Stream.concat(cluster.stream("somewhere"), cluster.stream("elsewhere")), cluster.stream("nearthere")).collect(Collectors.toSet());
+            Set<IInstance> result = Stream.concat(Stream.concat(cluster.stream("somewhere"),
+                                                                cluster.stream("elsewhere")),
+                                                  cluster.stream("nearthere")).collect(Collectors.toSet());
             Assert.assertEquals(expect, result);
         }
     }
@@ -62,7 +64,6 @@ public class NetworkTopologyTest extends DistributedTestBase
                                       .withRacks(2, 1, 3)
                                       .start())
         {
-            Set<IInstance> expect = cluster.stream().collect(Collectors.toSet());
             Assert.assertEquals(6, cluster.stream().count());
             Assert.assertEquals(3, cluster.stream("datacenter1").count());
             Assert.assertEquals(3, cluster.stream("datacenter2", "rack1").count());
