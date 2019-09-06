@@ -28,8 +28,8 @@ import org.apache.cassandra.utils.Pair;
 
 public class Snitch extends AbstractNetworkTopologySnitch
 {
-    final Pair<String,String> DEFAULT = Pair.create(AbstractCluster.dcName(1), AbstractCluster.rackName(1));
-    static Map<InetAddressAndPort, Pair<String,String>> mapping = new HashMap<>();
+    private final Pair<String,String> DEFAULT = Pair.create(AbstractCluster.dcName(1), AbstractCluster.rackName(1));
+    private static Map<InetAddressAndPort, Pair<String,String>> mapping = new HashMap<>();
 
     public String getRack(InetAddress endpoint)
     {

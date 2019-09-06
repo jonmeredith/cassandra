@@ -22,15 +22,19 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.NavigableMap;
-import java.util.TreeMap;
 import java.util.UUID;
 
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.locator.InetAddressAndPort;
 
+
+/**
+ * Utilities for accessing the system_traces table from in-JVM dtests
+ */
 public class TracingUtil
 {
+    /**
+     * Represents an entry from system_traces
+     */
     public static class TraceEntry
     {
         public final UUID sessionId;
