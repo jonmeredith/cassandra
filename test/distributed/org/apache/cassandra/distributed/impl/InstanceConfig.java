@@ -43,14 +43,14 @@ public class InstanceConfig implements IInstanceConfig
     public final int num;
     public int num() { return num; }
 
-    private NetworkTopology networkTopology;
+    private final NetworkTopology networkTopology;
     public Map<InetAddressAndPort, Pair<String,String>> networkTopology() { return networkTopology; }
 
     public final UUID hostId;
     public UUID hostId() { return hostId; }
     private final Map<String, Object> params = new TreeMap<>();
 
-    private EnumSet featureFlags;
+    private final EnumSet featureFlags;
 
     private volatile InetAddressAndPort broadcastAddressAndPort;
 
@@ -122,6 +122,7 @@ public class InstanceConfig implements IInstanceConfig
         this.params.putAll(copy.params);
         this.hostId = copy.hostId;
         this.featureFlags = copy.featureFlags;
+        this.broadcastAddressAndPort = copy.broadcastAddressAndPort;
     }
 
     public InstanceConfig with(Feature featureFlag)
@@ -198,11 +199,7 @@ public class InstanceConfig implements IInstanceConfig
         {
             valueField.set(writeToConfig, value);
         }
-        catch (IllegalAccessException e)
-        {
-            throw new IllegalStateException(e);
-        }
-        catch (IllegalArgumentException e)
+        catch (IllegalAccessException | IllegalArgumentException e)
         {
             throw new IllegalStateException(e);
         }
