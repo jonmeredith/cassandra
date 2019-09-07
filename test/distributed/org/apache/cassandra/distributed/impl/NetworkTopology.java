@@ -29,7 +29,7 @@ import org.apache.cassandra.utils.Pair;
 
 public class NetworkTopology extends HashMap<InetAddressAndPort, Pair<String,String>>
 {
-    NetworkTopology()
+    private NetworkTopology()
     {
         super();
     }
@@ -52,7 +52,7 @@ public class NetworkTopology extends HashMap<InetAddressAndPort, Pair<String,Str
                 Pair<String,String> dcAndRack = nodeIdTopology.get(nodeId);
                 if (dcAndRack == null)
                 {
-                    throw new IllegalStateException("nodeId " + nodeId + " for location " + dcAndRack + "not found in instanceMap");
+                    throw new IllegalStateException("nodeId " + nodeId + "not found in instanceMap");
                 }
 
                 InetAddressAndPort broadcastAddressAndPort = InetAddressAndPort.getByAddressOverrideDefaults(

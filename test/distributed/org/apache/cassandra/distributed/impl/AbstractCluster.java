@@ -413,7 +413,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
         {
             if (nodeIdTopology != null)
             {
-                throw new IllegalStateException("Network topology already created. Call withDCs/withRacks once or before withDc/withRack calls");
+                throw new IllegalStateException("Network topology already created. Call withDCs/withRacks once or before withDC/withRack calls");
             }
             nodeIdTopology = new HashMap<>();
             int nodeId = 1;
@@ -427,7 +427,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
                     }
                 }
             }
-            // adjust the node count to match the allocate
+            // adjust the node count to match the allocatation
             final int adjustedNodeCount = dcCount * racksPerDC * nodesPerRack;
             if (adjustedNodeCount != nodeCount)
             {
@@ -542,8 +542,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
                 token += increment;
             }
 
-            C cluster = factory.newCluster(root, version, configs, sharedClassLoader);
-            return cluster;
+            return factory.newCluster(root, version, configs, sharedClassLoader);
         }
 
         public C start() throws IOException

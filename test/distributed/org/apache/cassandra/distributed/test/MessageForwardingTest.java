@@ -53,14 +53,20 @@ public class MessageForwardingTest extends DistributedTestBase
                                            .withDC("dc1", 3)
                                            .start()))
         {
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v text, PRIMARY KEY (pk, ck)) WITH compaction = { 'class':'LeveledCompactionStrategy', 'enabled':'false'}");
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v text, PRIMARY KEY (pk, ck))");
 
             cluster.stream().forEach(instance -> commitCounts.put(instance.broadcastAddressAndPort().address, 0));
             final UUID sessionId = UUIDGen.getTimeUUID();
             Stream<Future<Object[][]>> inserts = IntStream.range(0, numInserts).mapToObj((idx) ->
-                cluster.coordinator(1).asyncTraceExecute(sessionId, "INSERT INTO " + KEYSPACE + ".tbl(pk,ck,v) VALUES (1, 1, 'x')", ConsistencyLevel.ALL)
+                cluster.coordinator(1).asyncTraceExecute(sessionId,
+                                                         "INSERT INTO " + KEYSPACE + ".tbl(pk,ck,v) VALUES (1, 1, 'x')",
+                                                         ConsistencyLevel.ALL)
             );
-            inserts.map(f -> IsolatedExecutor.waitOn(f)).count();  // make sure all of the async trace sessions complete
+
+            // Wait for each of the futures to complete before checking the traces, don't care
+            // about the result so
+            //noinspection ResultOfMethodCallIgnored
+            inserts.map(IsolatedExecutor::waitOn).count();
 
             cluster.stream("dc1").forEach(instance -> forwardFromCounts.put(instance.broadcastAddressAndPort().address, 0));
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddressAndPort().address, 0));
@@ -68,18 +74,22 @@ public class MessageForwardingTest extends DistributedTestBase
             traces.forEach(traceEntry -> {
                 if (traceEntry.activity.contains("Appending to commitlog"))
                 {
-                    commitCounts.compute(traceEntry.source, (k, v) -> v + 1);
+                    commitCounts.compute(traceEntry.source, (k, v) -> (v != null ? v : 0) + 1);
                 }
                 else if (traceEntry.activity.contains("Enqueuing forwarded write to "))
                 {
-                    forwardFromCounts.compute(traceEntry.source, (k, v) -> v + 1); // will NPE if unexpected endpoint
+                    forwardFromCounts.compute(traceEntry.source, (k, v) -> (v != null ? v : 0) + 1);
                 }
             });
 
             // Check that each node in dc1 was the forwarder at least once.  There is a (1/3)^numInserts chance
             // that the same node will be picked, but the odds of that are ~2e-48.
             forwardFromCounts.forEach((source, count) -> Assert.assertTrue(source + " should have been randomized to forward messages", count > 0));
-            commitCounts.forEach((source, count) -> Assert.assertEquals(source + " appending to commitlog traces", (long) numInserts, (long) count));
+
+            // Check that each node received the forwarded messages once (and only once)
+            commitCounts.forEach((source, count) ->
+                                 Assert.assertEquals(source + " appending to commitlog traces",
+                                                     (long) numInserts, (long) count));
         }
         catch (IOException e)
         {
