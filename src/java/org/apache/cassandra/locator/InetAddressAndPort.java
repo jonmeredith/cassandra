@@ -24,7 +24,6 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Objects;
 import java.util.regex.Pattern;
 
 import com.google.common.base.Preconditions;
@@ -186,7 +185,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     {
         String addressToString = address.toString(); // cannot use getHostName as it resolves
         int nameLength = addressToString.lastIndexOf('/'); // use last index to prevent ambiguity if host name contains /
-        assert nameLength >= 0 : "InetAddress.toString format may have changed, expecting /";
+        assert nameLength >= 0 : "InetAddress.toString format may have changed, expecting / - \"" + addressToString + "\"";
 
         // Check if need to wrap address with [ ] for IPv6 addresses
         if (addressToString.indexOf(':', nameLength) >= 0)

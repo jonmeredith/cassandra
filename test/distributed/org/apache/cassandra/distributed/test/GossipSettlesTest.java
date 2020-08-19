@@ -122,16 +122,9 @@ public class GossipSettlesTest extends TestBaseImpl
 
     static String addStoragePortToInstanceName(String s)
     {
-        return Arrays.stream(s.split("\n")).map(line -> {
-            if (line.startsWith(" "))
-            {
-                return line;
-            }
-            else // Host header line
-            {
-                return addStoragePortToIP(line);
-            }
-        }).collect(Collectors.joining("\n", "", "\n")); // to match final blank line
+        return Arrays.stream(s.split("\n")).map(line ->
+            line.startsWith(" ") ? line : addStoragePortToIP(line)
+        ).collect(Collectors.joining("\n", "", "\n")); // to match final blank line
     }
 
     static <V> Map<String, V> addPortToKeys(Map<String, V> source)
