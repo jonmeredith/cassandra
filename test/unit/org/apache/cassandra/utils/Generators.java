@@ -19,6 +19,7 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 import java.util.Random;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +31,16 @@ public final class Generators
 {
     private static final Logger logger = LoggerFactory.getLogger(Generators.class);
     private static final char[] REGEX_WORD_DOMAIN = createRegexWordDomain();
+
+    public static final Gen<UUID> UUID_RANDOM_GEN = rnd -> {
+        long most = rnd.next(Constraint.none());
+        most &= 0x0f << 8; /* clear version        */
+        most += 0x40 << 8; /* set to version 4     */
+        long least = rnd.next(Constraint.none());
+        least &= 0x3fl << 56; /* clear variant        */
+        least |= 0x80l << 56;  /* set to IETF variant  */
+        return new UUID(most, least);
+    };
 
     private Generators()
     {
@@ -53,7 +64,8 @@ public final class Generators
         Gen<char[]> gen = td -> {
             int size = sizes.generate(td);
             char[] is = new char[size];
-            for (int i = 0; i != size; i++) {
+            for (int i = 0; i != size; i++)
+            {
                 int idx = (int) td.next(constraints);
                 is[i] = domain[idx];
             }

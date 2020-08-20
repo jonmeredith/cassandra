@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -40,8 +40,10 @@ import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -65,7 +67,6 @@ import org.quicktheories.impl.Constraint;
 public final class CassandraGenerators
 {
     // utility generators for creating more complex types
-    private static final Gen<UUID> UUID_GEN = rnd -> new UUID(rnd.next(Constraint.none()), rnd.next(Constraint.none()));
     private static final Gen<String> TABLE_NAME_GEN = Generators.regexWord(SourceDSL.integers().between(1, 50));
     private static final Gen<Integer> SMALL_POSSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 30);
     private static final Gen<Boolean> BOOLEAN_GEN = SourceDSL.booleans().all();
@@ -80,10 +81,10 @@ public final class CassandraGenerators
                                                                                                    .put(FloatType.instance, SourceDSL.floats().any().map(FloatType.instance::decompose))
                                                                                                    .put(DoubleType.instance, SourceDSL.doubles().any().map(DoubleType.instance::decompose))
                                                                                                    .put(BytesType.instance, Generators.bytes(0, 1024))
+                                                                                                   .put(UUIDType.instance, Generators.UUID_RANDOM_GEN.map(UUIDType.instance::decompose))
                                                                                                    //TODO add the following
                                                                                                    // IntegerType.instance,
                                                                                                    // DecimalType.instance,
-                                                                                                   // UUIDType.instance,
                                                                                                    // TimeUUIDType.instance,
                                                                                                    // LexicalUUIDType.instance,
                                                                                                    // InetAddressType.instance,
@@ -94,15 +95,19 @@ public final class CassandraGenerators
                                                                                                    // AsciiType.instance,
                                                                                                    // UTF8Type.instance,
                                                                                                    .build();
-    public static final Gen<AbstractType<?>> PRIMITIVE_TYPE_GEN = SourceDSL.arbitrary().pick(new ArrayList<>(PRIMITIVE_TYPE_DATA_GENS.keySet()));
+    public static final Gen<AbstractType<?>> PRIMITIVE_TYPE_GEN = SourceDSL.arbitrary()
+                                                                           .pick(
+                                                                           Stream.concat(PRIMITIVE_TYPE_DATA_GENS.keySet().stream(),
+                                                                                         PRIMITIVE_TYPE_DATA_GENS.keySet().stream().map(ReversedType::getInstance))
+                                                                                 .toArray(AbstractType<?>[]::new));
     public static final Gen<AbstractType<?>> TYPE_GEN = PRIMITIVE_TYPE_GEN; //TODO add complex
 
 
-    public static final Gen<IPartitioner> PARTITIONER_GEN = SourceDSL.arbitrary().pick(Murmur3Partitioner.instance,
-                                                                                       ByteOrderedPartitioner.instance,
-                                                                                       new LocalPartitioner(TimeUUIDType.instance),
-                                                                                       OrderPreservingPartitioner.instance,
-                                                                                       RandomPartitioner.instance);
+    private static final Gen<IPartitioner> PARTITIONER_GEN = SourceDSL.arbitrary().pick(Murmur3Partitioner.instance,
+                                                                                        ByteOrderedPartitioner.instance,
+                                                                                        new LocalPartitioner(TimeUUIDType.instance),
+                                                                                        OrderPreservingPartitioner.instance,
+                                                                                        RandomPartitioner.instance);
 
 
     private static final Gen<TableMetadata.Kind> TABLE_KIND_GEN = SourceDSL.arbitrary().enumValues(TableMetadata.Kind.class);
@@ -118,8 +123,8 @@ public final class CassandraGenerators
 
     // Outbound messages
     private static final Gen<ConnectionType> CONNECTION_TYPE_GEN = SourceDSL.arbitrary().pick(ConnectionType.URGENT_MESSAGES, ConnectionType.SMALL_MESSAGES, ConnectionType.LARGE_MESSAGES);
-    public static final Gen<Message<PingRequest>> MESSAGE_PING_GEN = rnd -> Message.builder(Verb.PING_REQ, PingRequest.get(CONNECTION_TYPE_GEN.generate(rnd))).build();
-    public static final Gen<Message<? extends ReadCommand>> MESSAGE_READ_COMMAND_GEN = rnd -> Message.builder(Verb.READ_REQ, READ_COMMAND_GEN.generate(rnd)).build();
+    public static final Gen<Message<PingRequest>> MESSAGE_PING_GEN = CONNECTION_TYPE_GEN.map(t -> Message.builder(Verb.PING_REQ, PingRequest.get(t)).build());
+    public static final Gen<Message<? extends ReadCommand>> MESSAGE_READ_COMMAND_GEN = SINGLE_PARTITION_READ_COMMAND_GEN.map(c -> Message.builder(Verb.READ_REQ, c).build());
 
     /**
      * Hacky workaround to make sure different generic MessageOut types can be used for {@link #MESSAGE_GEN}.
@@ -140,7 +145,7 @@ public final class CassandraGenerators
     public static TableMetadata createTableMetadata(String ks, RandomnessSource rnd)
     {
         String tableName = TABLE_NAME_GEN.generate(rnd);
-        TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, TableId.fromUUID(UUID_GEN.generate(rnd)))
+        TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, TableId.fromUUID(Generators.UUID_RANDOM_GEN.generate(rnd)))
                                                      .partitioner(PARTITIONER_GEN.generate(rnd))
                                                      .kind(TABLE_KIND_GEN.generate(rnd))
                                                      .isCounter(BOOLEAN_GEN.generate(rnd))
@@ -208,6 +213,8 @@ public final class CassandraGenerators
 
     private static Gen<ByteBuffer> typeDataGen(AbstractType<?> type)
     {
+        if (type.isReversed())
+            type = ((ReversedType<?>) type).baseType;
         Gen<ByteBuffer> gen = PRIMITIVE_TYPE_DATA_GENS.get(type);
         if (gen == null)
             throw new UnsupportedOperationException("Unsupported type: " + type);
