@@ -695,7 +695,7 @@ public class Message<T>
             long currentTimeNanos = approxTime.now();
             MonotonicClockTranslation timeSnapshot = approxTime.translate();
             long creationTimeNanos = calculateCreationTimeNanos(in.readInt(), timeSnapshot, currentTimeNanos);
-            long expiresAtNanos = getExpiresAtNanos(creationTimeNanos, currentTimeNanos, TimeUnit.MILLISECONDS.toNanos(in.readUnsignedVInt()));
+            long expiresAtNanos = getExpiresAtNanos(creationTimeNanos, currentTimeNanos, TimeUnit.MILLISECONDS.toNanos(in.readUnsignedVInt() - 1));
             Verb verb = Verb.fromId(Ints.checkedCast(in.readUnsignedVInt()));
             int flags = Ints.checkedCast(in.readUnsignedVInt());
             Map<ParamType, Object> params = deserializeParams(in, version);

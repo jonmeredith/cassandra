@@ -1,10 +1,34 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.cassandra.utils;
+
+import java.nio.ByteBuffer;
+import java.util.Random;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.quicktheories.core.Gen;
 import org.quicktheories.impl.Constraint;
 
 public final class Generators
 {
+    private static final Logger logger = LoggerFactory.getLogger(Generators.class);
     private static final char[] REGEX_WORD_DOMAIN = createRegexWordDomain();
 
     private Generators()
@@ -57,5 +81,43 @@ public final class Generators
         for (int c = 97; c < 123; c++)
             domain[offset++] = (char) c;
         return domain;
+    }
+
+    public static Gen<ByteBuffer> bytes(int min, int max)
+    {
+        if (min < 0)
+            throw new IllegalArgumentException("Asked for negative bytes; given " + min);
+        if (max > LazySharedBlob.SHARED_BYTES.length)
+            throw new IllegalArgumentException("Requested bytes larger than shared bytes allowed; " +
+                                               "asked for " + max + " but only have " + LazySharedBlob.SHARED_BYTES.length);
+        if (max < min)
+            throw new IllegalArgumentException("Max was less than min; given min=" + min + " and max=" + max);
+        Constraint sizeConstraint = Constraint.between(min, max);
+        return rnd -> {
+            // since Constraint is immutable and the max was checked, its already proven to be int
+            int size = (int) rnd.next(sizeConstraint);
+            // to add more randomness, also shift offset in the array so the same size doesn't yield the same bytes
+            int offset = (int) rnd.next(Constraint.between(0, LazySharedBlob.SHARED_BYTES.length - size));
+
+            return ByteBuffer.wrap(LazySharedBlob.SHARED_BYTES, offset, size);
+        };
+    }
+
+    private static final class LazySharedBlob
+    {
+        private static final byte[] SHARED_BYTES;
+
+        static
+        {
+            int maxBlobLength = 1 * 1024 * 1024;
+            long blobSeed = Long.parseLong(System.getProperty("cassandra.test.blob.shared.seed", Long.toString(System.currentTimeMillis())));
+            logger.info("Shared blob Gen used seed {}", blobSeed);
+
+            Random random = new Random(blobSeed);
+            byte[] bytes = new byte[maxBlobLength];
+            random.nextBytes(bytes);
+
+            SHARED_BYTES = bytes;
+        }
     }
 }

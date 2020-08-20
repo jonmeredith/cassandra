@@ -210,6 +210,23 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
 
+    public static int[] supportedVersions()
+    {
+        return new int[] { MessagingService.VERSION_30, MessagingService.VERSION_3014,
+                           MessagingService.VERSION_40};
+    }
+
+    public static String versionToHumanReadable(int version)
+    {
+        switch (version)
+        {
+            case VERSION_30: return "VERSION_30";
+            case VERSION_3014: return "VERSION_3014";
+            case VERSION_40: return "VERSION_40";
+            default: throw new IllegalArgumentException("Unknown version: " + version);
+        }
+    }
+
     private static class MSHandle
     {
         public static final MessagingService instance = new MessagingService(false);

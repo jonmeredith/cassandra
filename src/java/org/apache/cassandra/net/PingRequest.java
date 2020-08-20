@@ -30,7 +30,7 @@ import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
 /**
  * Indicates to the recipient which {@link ConnectionType} should be used for the response.
  */
-class PingRequest
+public class PingRequest
 {
     static final PingRequest forUrgent = new PingRequest(URGENT_MESSAGES);
     static final PingRequest forSmall  = new PingRequest(SMALL_MESSAGES);
@@ -43,6 +43,17 @@ class PingRequest
         this.connectionType = connectionType;
     }
 
+    public static PingRequest get(ConnectionType type)
+    {
+        switch (type)
+        {
+            case URGENT_MESSAGES: return forUrgent;
+            case  SMALL_MESSAGES: return forSmall;
+            case  LARGE_MESSAGES: return forLarge;
+            default: throw new IllegalArgumentException("Unsupported type: " + type);
+        }
+    }
+
     static IVersionedSerializer<PingRequest> serializer = new IVersionedSerializer<PingRequest>()
     {
         public void serialize(PingRequest t, DataOutputPlus out, int version) throws IOException
@@ -52,16 +63,7 @@ class PingRequest
 
         public PingRequest deserialize(DataInputPlus in, int version) throws IOException
         {
-            ConnectionType type = ConnectionType.fromId(in.readByte());
-
-            switch (type)
-            {
-                case URGENT_MESSAGES: return forUrgent;
-                case  SMALL_MESSAGES: return forSmall;
-                case  LARGE_MESSAGES: return forLarge;
-            }
-
-            throw new IllegalStateException();
+            return get(ConnectionType.fromId(in.readByte()));
         }
 
         public long serializedSize(PingRequest t, int version)
