@@ -26,12 +26,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.builder.MultilineRecursiveToStringStyle;
@@ -97,7 +95,7 @@ public final class CassandraGenerators
 
     // types
 
-    private static final Map<AbstractType<?>, TypeSupport> PRIMITIVE_TYPE_DATA_GENS =
+    private static final Map<AbstractType<?>, TypeSupport<?>> PRIMITIVE_TYPE_DATA_GENS =
     Arrays.asList(TypeSupport.of(BooleanType.instance, BOOLEAN_GEN),
                   TypeSupport.of(ByteType.instance, SourceDSL.integers().between(Byte.MIN_VALUE, Byte.MAX_VALUE).map(Integer::byteValue)),
                   TypeSupport.of(ShortType.instance, SourceDSL.integers().between(Short.MIN_VALUE, Short.MAX_VALUE).map(Integer::shortValue)),
@@ -311,14 +309,14 @@ public final class CassandraGenerators
         // this doesn't affect the data, only sort order, so drop it
         if (type.isReversed())
             type = ((ReversedType<?>) type).baseType;
-        TypeSupport gen = PRIMITIVE_TYPE_DATA_GENS.get(type);
+        TypeSupport<?> gen = PRIMITIVE_TYPE_DATA_GENS.get(type);
         if (gen != null)
             return gen;
         // might be... complex...
         if (type instanceof SetType)
         {
             SetType setType = (SetType) type;
-            TypeSupport elementSupport = getTypeSupport(setType.getElementsType());
+            TypeSupport<?> elementSupport = getTypeSupport(setType.getElementsType());
             return TypeSupport.of(setType, rnd -> {
                 int size = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
                 HashSet<Object> set = Sets.newHashSetWithExpectedSize(size);
@@ -330,7 +328,7 @@ public final class CassandraGenerators
         else if (type instanceof ListType)
         {
             ListType listType = (ListType) type;
-            TypeSupport elementSupport = getTypeSupport(listType.getElementsType());
+            TypeSupport<?> elementSupport = getTypeSupport(listType.getElementsType());
             return TypeSupport.of(listType, rnd -> {
                 int size = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
                 List<Object> list = new ArrayList<>(size);
@@ -342,8 +340,8 @@ public final class CassandraGenerators
         else if (type instanceof MapType)
         {
             MapType mapType = (MapType) type;
-            TypeSupport keySupport = getTypeSupport(mapType.getKeysType());
-            TypeSupport valueSupport = getTypeSupport(mapType.getValuesType());
+            TypeSupport<?> keySupport = getTypeSupport(mapType.getKeysType());
+            TypeSupport<?> valueSupport = getTypeSupport(mapType.getValuesType());
             return TypeSupport.of(mapType, rnd -> {
                 int size = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
                 Map<Object, Object> map = Maps.newHashMapWithExpectedSize(size);
@@ -360,31 +358,22 @@ public final class CassandraGenerators
             return TypeSupport.of(tupleType, rnd -> {
                 ByteBuffer[] elements = new ByteBuffer[elementsSupport.size()];
                 for (int i = 0; i < elementsSupport.size(); i++)
-                    elements[i] = elementsSupport.get(i).toBytes.apply(elementsSupport.get(i).valueGen.generate(rnd));
+                    elements[i] = elementsSupport.get(i).type.decompose(elementsSupport.get(i).valueGen.generate(rnd));
                 return TupleType.buildValue(elements);
-            }, i -> i);
+            });
         }
         throw new UnsupportedOperationException("Unsupported type: " + type);
     }
 
-    public static final class TypeSupport
+    public static final class TypeSupport<T>
     {
-        public final AbstractType<Object> type;
-        public final Gen<Object> valueGen;
-        public final Function<Object, ByteBuffer> toBytes;
+        public final AbstractType<T> type;
+        public final Gen<T> valueGen;
 
-        public TypeSupport(AbstractType<? extends Object> type, Gen<? extends Object> valueGen)
+        private TypeSupport(AbstractType<T> type, Gen<T> valueGen)
         {
-            this.type = (AbstractType<Object>) Objects.requireNonNull(type);
-            this.valueGen = (Gen<Object>) Objects.requireNonNull(valueGen);
-            this.toBytes = this.type::decompose;
-        }
-
-        public TypeSupport(AbstractType<? extends Object> type, Gen<? extends Object> valueGen, Function<Object, ByteBuffer> toBytes)
-        {
-            this.type = (AbstractType<Object>) Objects.requireNonNull(type);
-            this.valueGen = (Gen<Object>) Objects.requireNonNull(valueGen);
-            this.toBytes = Objects.requireNonNull(toBytes);
+            this.type = Objects.requireNonNull(type);
+            this.valueGen = Objects.requireNonNull(valueGen);
         }
 
         public static <T> TypeSupport of(AbstractType<T> type, Gen<T> valueGen)
@@ -392,14 +381,9 @@ public final class CassandraGenerators
             return new TypeSupport(type, valueGen);
         }
 
-        public static <T> TypeSupport of(AbstractType<?> type, Gen<T> valueGen, Function<? extends T, ByteBuffer> toBytes)
-        {
-            return new TypeSupport(type, valueGen, (Function<Object, ByteBuffer>) toBytes);
-        }
-
         public Gen<ByteBuffer> bytesGen()
         {
-            return rnd -> toBytes.apply(valueGen.generate(rnd));
+            return rnd -> type.decompose(valueGen.generate(rnd));
         }
 
         public String toString()
