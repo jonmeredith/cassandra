@@ -420,7 +420,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public long writtenLength(ByteBuffer value)
     {
-        assert value.hasRemaining() : "bytes are empty";
+        assert value.hasRemaining() : "bytes should not be empty";
         return valueLengthIfFixed() >= 0
              ? value.remaining()
              : TypeSizes.sizeofWithVIntLength(value);

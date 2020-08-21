@@ -45,6 +45,7 @@ import static org.apache.cassandra.utils.CassandraGenerators.MESSAGE_GEN;
 import static org.apache.cassandra.utils.FailingConsumer.orFail;
 import static org.quicktheories.QuickTheory.qt;
 
+// REVIEW Maybe more accurately MessageSerializationPropertyTest
 public class MessagePropertyTest implements Serializable
 {
     static

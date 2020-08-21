@@ -45,7 +45,7 @@ public final class Generators
     private static final char[] LETTER_OR_DIGIT_DOMAIN = createLetterOrDigitDomain();
     private static final Constraint LETTER_OR_DIGIT_CONSTRAINT = Constraint.between(0, LETTER_OR_DIGIT_DOMAIN.length - 1).withNoShrinkPoint();
     private static final char[] REGEX_WORD_DOMAIN = createRegexWordDomain();
-    private static final Constraint REGEX_WORD_CONSTRAINT = Constraint.between(0, REGEX_WORD_DOMAIN.length - 1).withNoShrinkPoint();
+    private static final Constraint REGEX_WORD_CONSTRAINT = Constraint.between(0, REGEX_WORD_DOMAIN.length - 1).withNoShrinkPoint(); // REVIEW: not used
     private static final char[] DNS_DOMAIN_PART_DOMAIN = createDNSDomainPartDomain();
     private static final Constraint DNS_DOMAIN_PART_CONSTRAINT = Constraint.between(0, DNS_DOMAIN_PART_DOMAIN.length - 1).withNoShrinkPoint();
     private static final Constraint BYTES_CONSTRAINT = Constraint.between(0, 255);
@@ -276,12 +276,12 @@ public final class Generators
         };
     }
 
-    private static boolean isDash(char c)
+    private static boolean isDash(char c) // REVIEW: isDashOrHyphen?
     {
         switch (c)
         {
-            case 45: // -
-            case 95: // _
+            case 45: // -  // REVIEW - why not'-';?
+            case 95: // _  // '_'; ?
                 return true;
             default:
                 return false;

@@ -22,6 +22,7 @@ import java.io.IOException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.assertj.core.util.VisibleForTesting;
 
 import static org.apache.cassandra.net.ConnectionType.URGENT_MESSAGES;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
@@ -43,6 +44,7 @@ public class PingRequest
         this.connectionType = connectionType;
     }
 
+    @VisibleForTesting
     public static PingRequest get(ConnectionType type)
     {
         switch (type)

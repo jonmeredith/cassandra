@@ -88,9 +88,10 @@ import org.quicktheories.impl.Constraint;
 public final class CassandraGenerators
 {
     // utility generators for creating more complex types
+    // REVIEW: Maybe rename to IDENTIFIER_GEN, could also add a small chance of a nasty quoted identifier with any crazy chars in?
     private static final Gen<String> TABLE_NAME_GEN = Generators.regexWord(SourceDSL.integers().between(1, 50));
-    private static final Gen<Integer> VERY_SMALL_POSSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 3);
-    private static final Gen<Integer> SMALL_POSSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 30);
+    private static final Gen<Integer> VERY_SMALL_POSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 3); // REVIEW: fixed identifier typo
+    private static final Gen<Integer> SMALL_POSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 30); // REVIEW: fixed identifier typo
     private static final Gen<Boolean> BOOLEAN_GEN = SourceDSL.booleans().all();
 
     // types
@@ -103,10 +104,10 @@ public final class CassandraGenerators
                   TypeSupport.of(LongType.instance, SourceDSL.longs().all()),
                   TypeSupport.of(FloatType.instance, SourceDSL.floats().any()),
                   TypeSupport.of(DoubleType.instance, SourceDSL.doubles().any()),
-                  TypeSupport.of(BytesType.instance, Generators.bytes(1, 1024)),
+                  TypeSupport.of(BytesType.instance, Generators.bytes(1, 1024)), // REVIEW: no zero-length Bytes?
                   TypeSupport.of(UUIDType.instance, Generators.UUID_RANDOM_GEN),
                   TypeSupport.of(InetAddressType.instance, Generators.INET_ADDRESS_GEN),
-                  TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(1, 1024)),
+                  TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(1, 1024)), // REVIEW: no zero-length strings?
                   TypeSupport.of(UTF8Type.instance, Generators.UTF_8_GEN),
                   TypeSupport.of(TimestampType.instance, Generators.DATE_GEN)
                   //TODO add the following
@@ -121,9 +122,9 @@ public final class CassandraGenerators
     public static final Gen<AbstractType<?>> PRIMITIVE_TYPE_GEN = SourceDSL.arbitrary()
                                                                            .pick(
                                                                            Stream.concat(PRIMITIVE_TYPE_DATA_GENS.keySet().stream(),
-                                                                                         PRIMITIVE_TYPE_DATA_GENS.keySet().stream().map(ReversedType::getInstance))
+                                                                                         PRIMITIVE_TYPE_DATA_GENS.keySet().stream().map(ReversedType::getInstance)) // REVIEW: I like it, although you won't get any ReversedType<ReversedType<X>> this way, which is pathalogical, but perhaps interesting for testing
                                                                                  .toArray(AbstractType<?>[]::new));
-//    public static final Gen<AbstractType<?>> TYPE_GEN = PRIMITIVE_TYPE_GEN; //TODO add complex
+//    public static final Gen<AbstractType<?>> TYPE_GEN = PRIMITIVE_TYPE_GEN; //TODO add complex // REVIEW: Cruft to remove now you have getType?
 
 
     private static final Gen<IPartitioner> PARTITIONER_GEN = SourceDSL.arbitrary().pick(Murmur3Partitioner.instance,
@@ -140,7 +141,7 @@ public final class CassandraGenerators
         TableMetadata metadata = TABLE_METADATA_GEN.generate(rnd);
         int nowInSec = (int) rnd.next(Constraint.between(1, Integer.MAX_VALUE));
         ByteBuffer key = partitionKeyDataGen(metadata).generate(rnd);
-        return SinglePartitionReadCommand.create(metadata, nowInSec, key, Slices.ALL);
+        return SinglePartitionReadCommand.create(metadata, nowInSec, key, Slices.ALL); // REVIEW: future improvement to generate slices
     }).describedAs(CassandraGenerators::toStringRecursive);
     private static final Gen<? extends ReadCommand> READ_COMMAND_GEN = Generate.oneOf(SINGLE_PARTITION_READ_COMMAND_GEN)
                                                                                .describedAs(CassandraGenerators::toStringRecursive);
@@ -166,6 +167,8 @@ public final class CassandraGenerators
     private enum TypeKind
     {PRIMITIVE, SET, LIST, MAP, TUPLE, STRUCT}
 
+    // REVIEW: May be good to adjust the weights of the different types with `frequency` - seems like you'd want to generate primitive types at least 50% of the time
+    // maybe as high as 90%.  At the moment will just be 1/6 of the time.  I suppose it depends what you want to test.
     private static final Gen<TypeKind> TYPE_KIND_GEN = SourceDSL.arbitrary().enumValuesWithNoOrder(TypeKind.class);
 
     public static Gen<AbstractType<?>> getType()
@@ -186,6 +189,7 @@ public final class CassandraGenerators
                     return PRIMITIVE_TYPE_GEN.generate(rnd);
                 case SET:
                 {
+                    // REVIEW: Though this does generate frozen collections, it may not be the same as also using the FrozenType<>, maybe doesn't matter.
                     boolean multiCell = BOOLEAN_GEN.generate(rnd);
                     AbstractType<?> elements = atBottom ? PRIMITIVE_TYPE_GEN.generate(rnd) : getType(maxDepth - 1).generate(rnd);
                     return SetType.getInstance(elements, multiCell);
@@ -205,7 +209,7 @@ public final class CassandraGenerators
                 }
                 case TUPLE:
                 {
-                    int numElements = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                    int numElements = VERY_SMALL_POSITIVE_SIZE_GEN.generate(rnd);
                     List<AbstractType<?>> elements = new ArrayList<>(numElements);
                     Gen<AbstractType<?>> elementGen = atBottom ? PRIMITIVE_TYPE_GEN : getType(maxDepth - 1);
                     for (int i = 0; i < numElements; i++)
@@ -215,7 +219,7 @@ public final class CassandraGenerators
                 case STRUCT:
                 {
                     boolean multiCell = BOOLEAN_GEN.generate(rnd);
-                    int numElements = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                    int numElements = VERY_SMALL_POSITIVE_SIZE_GEN.generate(rnd);
                     List<AbstractType<?>> fieldTypes = new ArrayList<>(numElements);
                     List<FieldIdentifier> fieldNames = new ArrayList<>(numElements);
                     Gen<AbstractType<?>> elementGen = atBottom ? PRIMITIVE_TYPE_GEN : getType(maxDepth - 1);
@@ -225,6 +229,7 @@ public final class CassandraGenerators
                     for (int i = 0; i < numElements; i++)
                     {
                         fieldTypes.add(elementGen.generate(rnd));
+                        // REVIEW: Possible randomly generated name collision
                         fieldNames.add(FieldIdentifier.forQuoted(TABLE_NAME_GEN.generate(rnd)));
                     }
                     return new UserType(ks, name, fieldNames, fieldTypes, multiCell);
@@ -246,10 +251,10 @@ public final class CassandraGenerators
 
         // generate columns
         // must have a non-zero amount of partition columns, but may have 0 for the rest; SMALL_POSSITIVE_SIZE_GEN won't return 0
-        int numPartitionColumns = SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
-        int numClusteringColumns = SMALL_POSSITIVE_SIZE_GEN.generate(rnd) - 1;
-        int numRegularColumns = SMALL_POSSITIVE_SIZE_GEN.generate(rnd) - 1;
-        int numStaticColumns = SMALL_POSSITIVE_SIZE_GEN.generate(rnd) - 1;
+        int numPartitionColumns = SMALL_POSITIVE_SIZE_GEN.generate(rnd);
+        int numClusteringColumns = SMALL_POSITIVE_SIZE_GEN.generate(rnd) - 1;
+        int numRegularColumns = SMALL_POSITIVE_SIZE_GEN.generate(rnd) - 1;
+        int numStaticColumns = SMALL_POSITIVE_SIZE_GEN.generate(rnd) - 1;
 
         Set<String> createdColumnNames = new HashSet<>();
         for (int i = 0; i < numPartitionColumns; i++)
@@ -274,7 +279,7 @@ public final class CassandraGenerators
 
     private static ColumnMetadata createColumnDefinition(String ks, String table,
                                                          ColumnMetadata.Kind kind, AbstractType<?> type,
-                                                         Set<String> createdColumnNames,
+                                                         Set<String> createdColumnNames, // REVIEW: worth noting the side-effect here?
                                                          RandomnessSource rnd)
     {
         // filter for unique names
@@ -318,7 +323,7 @@ public final class CassandraGenerators
             SetType setType = (SetType) type;
             TypeSupport<?> elementSupport = getTypeSupport(setType.getElementsType());
             return TypeSupport.of(setType, rnd -> {
-                int size = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                int size = VERY_SMALL_POSITIVE_SIZE_GEN.generate(rnd); // REVIEW: Should support empty sets, and maybe more than 3 entries?
                 HashSet<Object> set = Sets.newHashSetWithExpectedSize(size);
                 for (int i = 0; i < size; i++)
                     set.add(elementSupport.valueGen.generate(rnd));
@@ -330,7 +335,7 @@ public final class CassandraGenerators
             ListType listType = (ListType) type;
             TypeSupport<?> elementSupport = getTypeSupport(listType.getElementsType());
             return TypeSupport.of(listType, rnd -> {
-                int size = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                int size = VERY_SMALL_POSITIVE_SIZE_GEN.generate(rnd); // REVIEW: Should support empty lists, and maybe more than 3 entries?
                 List<Object> list = new ArrayList<>(size);
                 for (int i = 0; i < size; i++)
                     list.add(elementSupport.valueGen.generate(rnd));
@@ -343,7 +348,7 @@ public final class CassandraGenerators
             TypeSupport<?> keySupport = getTypeSupport(mapType.getKeysType());
             TypeSupport<?> valueSupport = getTypeSupport(mapType.getValuesType());
             return TypeSupport.of(mapType, rnd -> {
-                int size = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                int size = VERY_SMALL_POSITIVE_SIZE_GEN.generate(rnd); // REVIEW: Should support empty maps, and maybe more than 3 entries?
                 Map<Object, Object> map = Maps.newHashMapWithExpectedSize(size);
                 // if there is conflict thats fine
                 for (int i = 0; i < size; i++)

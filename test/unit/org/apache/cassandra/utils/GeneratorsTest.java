@@ -17,7 +17,7 @@ public class GeneratorsTest
                       .as("version was not random uuid")
                       .isEqualTo(4);
             Assertions.assertThat(uuid.variant())
-                      .as("varient not set to IETF (2)")
+                      .as("variant not set to IETF (2)")
                       .isEqualTo(2);
         });
     }
@@ -28,6 +28,7 @@ public class GeneratorsTest
         qt().forAll(Generators.DNS_DOMAIN_NAME).checkAssert(InternetDomainName::from);
     }
 
+    // REVIEW: Commented out code - should remove it or make it work
 //    @Test
 //    public void inetAddress()
 //    {
