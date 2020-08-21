@@ -17,20 +17,38 @@
  */
 package org.apache.cassandra.utils;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.Date;
 import java.util.Random;
 import java.util.UUID;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.quicktheories.core.Gen;
+import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
 
 public final class Generators
 {
     private static final Logger logger = LoggerFactory.getLogger(Generators.class);
+
+    private static final char[] LETTER_DOMAIN = createLetterDomain();
+    private static final Constraint LETTER_CONSTRAINT = Constraint.between(0, LETTER_DOMAIN.length - 1).withNoShrinkPoint();
+    private static final char[] LETTER_OR_DIGIT_DOMAIN = createLetterOrDigitDomain();
+    private static final Constraint LETTER_OR_DIGIT_CONSTRAINT = Constraint.between(0, LETTER_OR_DIGIT_DOMAIN.length - 1).withNoShrinkPoint();
     private static final char[] REGEX_WORD_DOMAIN = createRegexWordDomain();
+    private static final Constraint REGEX_WORD_CONSTRAINT = Constraint.between(0, REGEX_WORD_DOMAIN.length - 1).withNoShrinkPoint();
+    private static final char[] DNS_DOMAIN_PART_DOMAIN = createDNSDomainPartDomain();
+    private static final Constraint DNS_DOMAIN_PART_CONSTRAINT = Constraint.between(0, DNS_DOMAIN_PART_DOMAIN.length - 1).withNoShrinkPoint();
+    private static final Constraint BYTES_CONSTRAINT = Constraint.between(0, 255);
 
     public static final Gen<UUID> UUID_RANDOM_GEN = rnd -> {
         long most = rnd.next(Constraint.none());
@@ -41,6 +59,124 @@ public final class Generators
         least |= 0x80l << 56;  /* set to IETF variant  */
         return new UUID(most, least);
     };
+
+    public static final Gen<String> DNS_DOMAIN_NAME = rnd -> {
+        // how many parts to generate
+        int numParts = (int) rnd.next(Constraint.between(1, 127));
+        int MAX_LENGTH = 253;
+        int MAX_PART_LENGTH = 63;
+        // to make sure the string is within the max allowed length (253), cap each part uniformily
+        Constraint partSizeConstraint = Constraint.between(1, Math.min(Math.max(1, (int) Math.ceil((MAX_LENGTH - numParts) / numParts)), MAX_PART_LENGTH));
+        StringBuilder sb = new StringBuilder(MAX_LENGTH);
+        for (int i = 0; i < numParts; i++)
+        {
+            int partSize = (int) rnd.next(partSizeConstraint);
+            // -_ not allowed in the first or last position of a part, so special case these
+            // also, only use letters as first char doesn't allow digits uniformailly
+            sb.append(LETTER_DOMAIN[(int) rnd.next(LETTER_CONSTRAINT)]);
+            for (int j = 1; j < partSize; j++)
+                sb.append(DNS_DOMAIN_PART_DOMAIN[(int) rnd.next(DNS_DOMAIN_PART_CONSTRAINT)]);
+            if (isDash(sb.charAt(sb.length() - 1)))
+            {
+                // need to replace
+                sb.setCharAt(sb.length() - 1, LETTER_OR_DIGIT_DOMAIN[(int) rnd.next(LETTER_OR_DIGIT_CONSTRAINT)]);
+            }
+            sb.append('.'); // domain allows . at the end (part of spec) so don't need to worry about removing
+        }
+        return sb.toString();
+    };
+
+    public static final Gen<byte[]> IPV4_ADDRESS = rnd -> {
+        byte[] bytes = new byte[4];
+        for (int i = 0; i < 4; i++)
+            bytes[i] = (byte) rnd.next(BYTES_CONSTRAINT);
+        return bytes;
+    };
+    public static final Gen<byte[]> IPV6_ADDRESS = rnd -> {
+        byte[] bytes = new byte[16];
+        for (int i = 0; i < 16; i++)
+            bytes[i] = (byte) rnd.next(BYTES_CONSTRAINT);
+        return bytes;
+    };
+
+    public static final Gen<InetAddress> INET_4_ADDRESS_RESOLVED_GEN = rnd -> {
+        try
+        {
+            return InetAddress.getByAddress(DNS_DOMAIN_NAME.generate(rnd), IPV4_ADDRESS.generate(rnd));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new AssertionError(e);
+        }
+    };
+
+    public static final Gen<InetAddress> INET_4_ADDRESS_UNRESOLVED_GEN = rnd -> {
+        try
+        {
+            return InetAddress.getByAddress(null, IPV4_ADDRESS.generate(rnd));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new AssertionError(e);
+        }
+    };
+    public static final Gen<InetAddress> INET_4_ADDRESS_GEN = INET_4_ADDRESS_RESOLVED_GEN.mix(INET_4_ADDRESS_UNRESOLVED_GEN);
+
+    public static final Gen<InetAddress> INET_6_ADDRESS_RESOLVED_GEN = rnd -> {
+        try
+        {
+            return InetAddress.getByAddress(DNS_DOMAIN_NAME.generate(rnd), IPV6_ADDRESS.generate(rnd));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new AssertionError(e);
+        }
+    };
+
+    public static final Gen<InetAddress> INET_6_ADDRESS_UNRESOLVED_GEN = rnd -> {
+        try
+        {
+            return InetAddress.getByAddress(null, IPV6_ADDRESS.generate(rnd));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new AssertionError(e);
+        }
+    };
+    public static final Gen<InetAddress> INET_6_ADDRESS_GEN = INET_6_ADDRESS_RESOLVED_GEN.mix(INET_6_ADDRESS_UNRESOLVED_GEN);
+    public static final Gen<InetAddress> INET_ADDRESS_GEN = INET_4_ADDRESS_GEN.mix(INET_6_ADDRESS_GEN);
+
+    /**
+     * Implements a valid utf-8 generator.
+     *
+     * Implementation note, currently relies on getBytes to strip out non-valid utf-8 chars, so is slow
+     */
+    public static final Gen<String> UTF_8_GEN = SourceDSL.strings()
+                                                         .basicMultilingualPlaneAlphabet()
+                                                         .ofLengthBetween(0, 1024)
+                                                         .map(s -> new String(s.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8));
+
+    // time generators
+    // all time is boxed in the future around 50 years from today: Aug 20th, 2020 UTC
+    public static final Gen<Timestamp> TIMESTAMP_GEN;
+    public static final Gen<Date> DATE_GEN;
+
+    static
+    {
+        ZonedDateTime now = ZonedDateTime.of(2020, 8, 20,
+                                             0, 0, 0, 0, ZoneOffset.UTC);
+        ZonedDateTime startOfTime = now.minusYears(50);
+        ZonedDateTime endOfDays = now.plusYears(50);
+        Constraint millisConstraint = Constraint.between(startOfTime.toInstant().toEpochMilli(), endOfDays.toInstant().toEpochMilli());
+        Constraint nanosConstraint = Constraint.between(startOfTime.toInstant().toEpochMilli(), endOfDays.toInstant().toEpochMilli());
+        Constraint nanosInSecondConstraint = Constraint.between(0, 999999999);
+        TIMESTAMP_GEN = rnd -> {
+            Timestamp ts = new Timestamp(rnd.next(millisConstraint));
+            ts.setNanos((int) rnd.next(nanosInSecondConstraint));
+            return ts;
+        };
+        DATE_GEN = TIMESTAMP_GEN.map(t -> new Date(t.getTime()));
+    }
 
     private Generators()
     {
@@ -75,14 +211,27 @@ public final class Generators
         return gen;
     }
 
-    private static char[] createRegexWordDomain()
+    private static char[] createLetterDomain()
     {
-        // \w == [a-zA-Z_0-9]
-        char[] domain = new char[26 * 2 + 10 + 1];
+        // [a-zA-Z]
+        char[] domain = new char[26 * 2];
 
         int offset = 0;
-        // _
-        domain[offset++] = (char) 95;
+        // A-Z
+        for (int c = 65; c < 91; c++)
+            domain[offset++] = (char) c;
+        // a-z
+        for (int c = 97; c < 123; c++)
+            domain[offset++] = (char) c;
+        return domain;
+    }
+
+    private static char[] createLetterOrDigitDomain()
+    {
+        // [a-zA-Z0-9]
+        char[] domain = new char[26 * 2 + 10];
+
+        int offset = 0;
         // 0-9
         for (int c = 48; c < 58; c++)
             domain[offset++] = (char) c;
@@ -93,6 +242,18 @@ public final class Generators
         for (int c = 97; c < 123; c++)
             domain[offset++] = (char) c;
         return domain;
+    }
+
+    private static char[] createRegexWordDomain()
+    {
+        // \w == [a-zA-Z_0-9] the only difference with letterOrDigit is the addition of _
+        return ArrayUtils.add(createLetterOrDigitDomain(), (char) 95); // 95 is _
+    }
+
+    private static char[] createDNSDomainPartDomain()
+    {
+        // [a-zA-Z0-9_-] the only difference with regex word is the addition of -
+        return ArrayUtils.add(createRegexWordDomain(), (char) 45); // 45 is -
     }
 
     public static Gen<ByteBuffer> bytes(int min, int max)
@@ -113,6 +274,18 @@ public final class Generators
 
             return ByteBuffer.wrap(LazySharedBlob.SHARED_BYTES, offset, size);
         };
+    }
+
+    private static boolean isDash(char c)
+    {
+        switch (c)
+        {
+            case 45: // -
+            case 95: // _
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static final class LazySharedBlob

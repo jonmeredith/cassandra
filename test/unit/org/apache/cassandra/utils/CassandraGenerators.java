@@ -17,39 +17,60 @@
  */
 package org.apache.cassandra.utils;
 
+import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import org.apache.commons.lang3.builder.MultilineRecursiveToStringStyle;
+import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.SchemaCQLHelper;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.PingRequest;
@@ -72,35 +93,36 @@ public final class CassandraGenerators
     private static final Gen<Boolean> BOOLEAN_GEN = SourceDSL.booleans().all();
 
     // types
-    private static final ImmutableMap<AbstractType<?>, Gen<ByteBuffer>> PRIMITIVE_TYPE_DATA_GENS = ImmutableMap.<AbstractType<?>, Gen<ByteBuffer>>builder()
-                                                                                                   .put(BooleanType.instance, BOOLEAN_GEN.map(BooleanType.instance::decompose))
-                                                                                                   .put(ByteType.instance, SourceDSL.integers().between(Byte.MIN_VALUE, Byte.MAX_VALUE).map(Integer::byteValue).map(ByteType.instance::decompose))
-                                                                                                   .put(ShortType.instance, SourceDSL.integers().between(Short.MIN_VALUE, Short.MAX_VALUE).map(Integer::shortValue).map(ShortType.instance::decompose))
-                                                                                                   .put(Int32Type.instance, SourceDSL.integers().allPositive().map(Int32Type.instance::decompose))
-                                                                                                   .put(LongType.instance, SourceDSL.longs().all().map(LongType.instance::decompose))
-                                                                                                   .put(FloatType.instance, SourceDSL.floats().any().map(FloatType.instance::decompose))
-                                                                                                   .put(DoubleType.instance, SourceDSL.doubles().any().map(DoubleType.instance::decompose))
-                                                                                                   .put(BytesType.instance, Generators.bytes(0, 1024))
-                                                                                                   .put(UUIDType.instance, Generators.UUID_RANDOM_GEN.map(UUIDType.instance::decompose))
-                                                                                                   //TODO add the following
-                                                                                                   // IntegerType.instance,
-                                                                                                   // DecimalType.instance,
-                                                                                                   // TimeUUIDType.instance,
-                                                                                                   // LexicalUUIDType.instance,
-                                                                                                   // InetAddressType.instance,
-                                                                                                   // SimpleDateType.instance,
-                                                                                                   // TimestampType.instance,
-                                                                                                   // TimeType.instance,
-                                                                                                   // DurationType.instance,
-                                                                                                   // AsciiType.instance,
-                                                                                                   // UTF8Type.instance,
-                                                                                                   .build();
+    private static final ImmutableMap<AbstractType<?>, Gen<ByteBuffer>> PRIMITIVE_TYPE_DATA_GENS =
+    ImmutableMap.<AbstractType<?>, Gen<ByteBuffer>>builder()
+    .put(BooleanType.instance, BOOLEAN_GEN.map(BooleanType.instance::decompose))
+    .put(ByteType.instance, SourceDSL.integers().between(Byte.MIN_VALUE, Byte.MAX_VALUE).map(Integer::byteValue).map(ByteType.instance::decompose))
+    .put(ShortType.instance, SourceDSL.integers().between(Short.MIN_VALUE, Short.MAX_VALUE).map(Integer::shortValue).map(ShortType.instance::decompose))
+    .put(Int32Type.instance, SourceDSL.integers().allPositive().map(Int32Type.instance::decompose))
+    .put(LongType.instance, SourceDSL.longs().all().map(LongType.instance::decompose))
+    .put(FloatType.instance, SourceDSL.floats().any().map(FloatType.instance::decompose))
+    .put(DoubleType.instance, SourceDSL.doubles().any().map(DoubleType.instance::decompose))
+    .put(BytesType.instance, Generators.bytes(1, 1024))
+    .put(UUIDType.instance, Generators.UUID_RANDOM_GEN.map(UUIDType.instance::decompose))
+    .put(InetAddressType.instance, Generators.INET_ADDRESS_GEN.map(InetAddressType.instance::decompose))
+    .put(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(1, 1024).map(AsciiType.instance::decompose))
+    .put(UTF8Type.instance, Generators.UTF_8_GEN.map(UTF8Type.instance::decompose))
+    .put(TimestampType.instance, Generators.DATE_GEN.map(TimestampType.instance::decompose))
+    //TODO add the following
+    // IntegerType.instance,
+    // DecimalType.instance,
+    // TimeUUIDType.instance,
+    // LexicalUUIDType.instance,
+    // SimpleDateType.instance,
+    // TimeType.instance,
+    // DurationType.instance,
+    .build();
     public static final Gen<AbstractType<?>> PRIMITIVE_TYPE_GEN = SourceDSL.arbitrary()
                                                                            .pick(
                                                                            Stream.concat(PRIMITIVE_TYPE_DATA_GENS.keySet().stream(),
                                                                                          PRIMITIVE_TYPE_DATA_GENS.keySet().stream().map(ReversedType::getInstance))
                                                                                  .toArray(AbstractType<?>[]::new));
-    public static final Gen<AbstractType<?>> TYPE_GEN = PRIMITIVE_TYPE_GEN; //TODO add complex
+//    public static final Gen<AbstractType<?>> TYPE_GEN = PRIMITIVE_TYPE_GEN; //TODO add complex
 
 
     private static final Gen<IPartitioner> PARTITIONER_GEN = SourceDSL.arbitrary().pick(Murmur3Partitioner.instance,
@@ -110,36 +132,98 @@ public final class CassandraGenerators
                                                                                         RandomPartitioner.instance);
 
 
-    private static final Gen<TableMetadata.Kind> TABLE_KIND_GEN = SourceDSL.arbitrary().enumValues(TableMetadata.Kind.class);
-    public static final Gen<TableMetadata> TABLE_METADATA_GEN = rnd -> createTableMetadata(TABLE_NAME_GEN.generate(rnd), rnd);
+    private static final Gen<TableMetadata.Kind> TABLE_KIND_GEN = SourceDSL.arbitrary().pick(TableMetadata.Kind.REGULAR, TableMetadata.Kind.INDEX, TableMetadata.Kind.VIRTUAL);
+    public static final Gen<TableMetadata> TABLE_METADATA_GEN = gen(rnd -> createTableMetadata(TABLE_NAME_GEN.generate(rnd), rnd)).describedAs(CassandraGenerators::toStringRecursive);
 
-    private static final Gen<SinglePartitionReadCommand> SINGLE_PARTITION_READ_COMMAND_GEN = rnd -> {
+    private static final Gen<SinglePartitionReadCommand> SINGLE_PARTITION_READ_COMMAND_GEN = gen(rnd -> {
         TableMetadata metadata = TABLE_METADATA_GEN.generate(rnd);
         int nowInSec = (int) rnd.next(Constraint.between(1, Integer.MAX_VALUE));
         ByteBuffer key = partitionKeyDataGen(metadata).generate(rnd);
         return SinglePartitionReadCommand.create(metadata, nowInSec, key, Slices.ALL);
-    };
-    private static final Gen<? extends ReadCommand> READ_COMMAND_GEN = Generate.oneOf(SINGLE_PARTITION_READ_COMMAND_GEN);
+    }).describedAs(CassandraGenerators::toStringRecursive);
+    private static final Gen<? extends ReadCommand> READ_COMMAND_GEN = Generate.oneOf(SINGLE_PARTITION_READ_COMMAND_GEN)
+                                                                               .describedAs(CassandraGenerators::toStringRecursive);
 
     // Outbound messages
     private static final Gen<ConnectionType> CONNECTION_TYPE_GEN = SourceDSL.arbitrary().pick(ConnectionType.URGENT_MESSAGES, ConnectionType.SMALL_MESSAGES, ConnectionType.LARGE_MESSAGES);
-    public static final Gen<Message<PingRequest>> MESSAGE_PING_GEN = CONNECTION_TYPE_GEN.map(t -> Message.builder(Verb.PING_REQ, PingRequest.get(t)).build());
-    public static final Gen<Message<? extends ReadCommand>> MESSAGE_READ_COMMAND_GEN = SINGLE_PARTITION_READ_COMMAND_GEN.map(c -> Message.builder(Verb.READ_REQ, c).build());
-
-    /**
-     * Hacky workaround to make sure different generic MessageOut types can be used for {@link #MESSAGE_GEN}.
-     */
-    private static final Gen<Message<?>> cast(Gen<? extends Message<?>> gen)
-    {
-        return (Gen<Message<?>>) gen;
-    }
+    public static final Gen<Message<PingRequest>> MESSAGE_PING_GEN = CONNECTION_TYPE_GEN
+                                                                     .map(t -> Message.builder(Verb.PING_REQ, PingRequest.get(t)).build())
+                                                                     .describedAs(CassandraGenerators::toStringRecursive);
+    public static final Gen<Message<? extends ReadCommand>> MESSAGE_READ_COMMAND_GEN = READ_COMMAND_GEN
+                                                                                       .<Message<? extends ReadCommand>>map(c -> Message.builder(Verb.READ_REQ, c).build())
+                                                                                       .describedAs(CassandraGenerators::toStringRecursive);
 
     public static final Gen<Message<?>> MESSAGE_GEN = Generate.oneOf(cast(MESSAGE_PING_GEN),
-                                                                     cast(MESSAGE_READ_COMMAND_GEN));
+                                                                     cast(MESSAGE_READ_COMMAND_GEN))
+                                                              .describedAs(CassandraGenerators::toStringRecursive);
 
     private CassandraGenerators()
     {
 
+    }
+
+    private enum TypeKind { PRIMITIVE, SET, LIST, MAP, TUPLE, STRUCT }
+    public static Gen<AbstractType<?>> getType()
+    {
+        return getType(3);
+    }
+
+    public static Gen<AbstractType<?>> getType(int maxDepth)
+    {
+        assert maxDepth >= 0 : "max depth must be positive or zero; given " + maxDepth;
+        boolean atBottom = maxDepth == 0;
+        Gen<TypeKind> kindGen = SourceDSL.arbitrary().enumValues(TypeKind.class);
+        return rnd -> {
+            // figure out type to get
+            TypeKind kind = kindGen.generate(rnd);
+            switch (kind)
+            {
+                case PRIMITIVE:
+                    return PRIMITIVE_TYPE_GEN.generate(rnd);
+                case SET: {
+                    boolean multiCell = BOOLEAN_GEN.generate(rnd);
+                    AbstractType<?> elements = atBottom ? PRIMITIVE_TYPE_GEN.generate(rnd) : getType(maxDepth - 1).generate(rnd);
+                    return SetType.getInstance(elements, multiCell);
+                }
+                case LIST: {
+                    boolean multiCell = BOOLEAN_GEN.generate(rnd);
+                    AbstractType<?> elements = atBottom ? PRIMITIVE_TYPE_GEN.generate(rnd) : getType(maxDepth - 1).generate(rnd);
+                    return ListType.getInstance(elements, multiCell);
+                }
+                case MAP: {
+                    boolean multiCell = BOOLEAN_GEN.generate(rnd);
+                    AbstractType<?> key = atBottom ? PRIMITIVE_TYPE_GEN.generate(rnd) : getType(maxDepth - 1).generate(rnd);
+                    AbstractType<?> value = atBottom ? PRIMITIVE_TYPE_GEN.generate(rnd) : getType(maxDepth - 1).generate(rnd);
+                    return MapType.getInstance(key, value, multiCell);
+                }
+                case TUPLE: {
+                    int numElements = SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                    List<AbstractType<?>> elements = new ArrayList<>(numElements);
+                    Gen<AbstractType<?>> elementGen = atBottom ? PRIMITIVE_TYPE_GEN : getType(maxDepth - 1);
+                    for (int i = 0; i < numElements; i++)
+                        elements.add(elementGen.generate(rnd));
+                    return new TupleType(elements);
+                }
+                case STRUCT: {
+                    boolean multiCell = BOOLEAN_GEN.generate(rnd);
+                    int numElements = SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                    List<AbstractType<?>> fieldTypes = new ArrayList<>(numElements);
+                    List<FieldIdentifier> fieldNames = new ArrayList<>(numElements);
+                    Gen<AbstractType<?>> elementGen = atBottom ? PRIMITIVE_TYPE_GEN : getType(maxDepth - 1);
+                    String ks = TABLE_NAME_GEN.generate(rnd);
+                    ByteBuffer name = AsciiType.instance.decompose(TABLE_NAME_GEN.generate(rnd));
+
+                    for (int i = 0; i < numElements; i++)
+                    {
+                        fieldTypes.add(elementGen.generate(rnd));
+                        fieldNames.add(FieldIdentifier.forQuoted(TABLE_NAME_GEN.generate(rnd)));
+                    }
+                    return new UserType(ks, name, fieldNames, fieldTypes, multiCell);
+                }
+                default:
+                    throw new IllegalArgumentException("Unknown kind: " + kind);
+            }
+        };
     }
 
     public static TableMetadata createTableMetadata(String ks, RandomnessSource rnd)
@@ -176,7 +260,7 @@ public final class CassandraGenerators
                                                          Set<String> createdColumnNames,
                                                          RandomnessSource rnd)
     {
-        return createColumnDefinition(ks, table, kind, TYPE_GEN.generate(rnd), createdColumnNames, rnd);
+        return createColumnDefinition(ks, table, kind, getType().generate(rnd), createdColumnNames, rnd);
     }
 
     private static ColumnMetadata createColumnDefinition(String ks, String table,
@@ -217,7 +301,157 @@ public final class CassandraGenerators
             type = ((ReversedType<?>) type).baseType;
         Gen<ByteBuffer> gen = PRIMITIVE_TYPE_DATA_GENS.get(type);
         if (gen == null)
+        {
+            // ok, maybe this is complex... just saying...
+            if (type instanceof SetType)
+            {
+                SetType setType = (SetType) type;
+                Gen<ByteBuffer> elementGen = typeDataGen(setType.getElementsType());
+                return rnd -> {
+                    int size = SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                    HashSet<Object> set = Sets.newHashSetWithExpectedSize(size);
+                    for (int i = 0; i < size; i++)
+                        set.add(elementGen.generate(rnd));
+                    return setType.decompose(set);
+                };
+            }
+            else if (type instanceof ListType)
+            {
+                ListType listType = (ListType) type;
+                Gen<ByteBuffer> elementGen = typeDataGen(listType.getElementsType());
+                return rnd -> {
+                    int size = SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                    List<Object> set = new ArrayList<>(size);
+                    for (int i = 0; i < size; i++)
+                        set.add(elementGen.generate(rnd));
+                    return listType.decompose(set);
+                };
+            }
+            else if (type instanceof MapType)
+            {
+                MapType mapType = (MapType) type;
+                Gen<ByteBuffer> keyGen = typeDataGen(mapType.getKeysType());
+                Gen<ByteBuffer> valueGen = typeDataGen(mapType.getValuesType());
+                return rnd -> {
+                    int size = SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                    Map<Object, Object> map = Maps.newHashMapWithExpectedSize(size);
+                    // if there is conflict thats fine
+                    for (int i = 0; i < size; i++)
+                        map.put(keyGen.generate(rnd), valueGen.generate(rnd));
+                    return mapType.decompose(map);
+                };
+            }
+            else if (type instanceof TupleType) // includes UserType
+            {
+                TupleType tupleType = (TupleType) type;
+                List<Gen<ByteBuffer>> elementsGen = tupleType.allTypes().stream().map(CassandraGenerators::typeDataGen).collect(Collectors.toList());;
+                return rnd -> {
+                    ByteBuffer[] buffers = new ByteBuffer[elementsGen.size()];
+                    for (int i = 0; i < elementsGen.size(); i++)
+                        buffers[i] = elementsGen.get(i).generate(rnd);
+                    return TupleType.buildValue(buffers);
+                };
+            }
             throw new UnsupportedOperationException("Unsupported type: " + type);
+        }
         return gen;
+    }
+
+    private static final class TypeSupport<T>
+    {
+        private final AbstractType<T> type;
+        private final Gen<T> valueGen;
+        private final Gen<ByteBuffer> bytesGen;
+
+        TypeSupport(AbstractType<T> type, Gen<T> valueGen)
+        {
+            this.type = Objects.requireNonNull(type);
+            this.valueGen = Objects.requireNonNull(valueGen);
+            this.bytesGen = valueGen.map(type::decompose);
+        }
+    }
+
+    /**
+     * Hacky workaround to make sure different generic MessageOut types can be used for {@link #MESSAGE_GEN}.
+     */
+    private static final Gen<Message<?>> cast(Gen<? extends Message<?>> gen)
+    {
+        return (Gen<Message<?>>) gen;
+    }
+
+    /**
+     * Java's type inferrence with chaining doesn't work well, so this is used to inferr the root type early in cases
+     * where javac can't figure it out
+     */
+    private static <T> Gen<T> gen(Gen<T> fn)
+    {
+        return fn;
+    }
+
+    private static String toStringRecursive(Object o)
+    {
+        return ReflectionToStringBuilder.toString(o, new MultilineRecursiveToStringStyle() {
+            private String spacer = "";
+
+            {
+                setArrayStart("[");
+                setArrayEnd("]");
+                setContentStart("{");
+                setContentEnd("}");
+                setUseIdentityHashCode(false);
+                setUseShortClassName(true);
+            }
+
+            protected boolean accept(Class<?> clazz)
+            {
+                return !clazz.isEnum()
+                       && Stream.of(clazz.getDeclaredFields()).filter(f -> !Modifier.isStatic(f.getModifiers())).findAny().isPresent();
+            }
+
+            public void appendDetail(StringBuffer buffer, String fieldName, Object value)
+            {
+                if (value instanceof ByteBuffer)
+                {
+                    value = ByteBufferUtil.bytesToHex((ByteBuffer) value);
+                }
+                else if (value instanceof Token || value instanceof InetAddressAndPort)
+                {
+                    value = value.toString();
+                }
+                else if (value instanceof TableMetadata)
+                {
+                    String cql = SchemaCQLHelper.getTableMetadataAsCQL((TableMetadata) value, true, true, false);
+                    cql = cql.replace("\n", "\n  " + spacer);
+                    cql = "\n  " + spacer + cql;
+                    value = cql;
+
+                }
+                super.appendDetail(buffer, fieldName, value);
+            }
+
+            // MultilineRecursiveToStringStyle doesn't look at what was set and instead hard codes the values when it "resets" the level
+            protected void setArrayStart(String arrayStart)
+            {
+                super.setArrayStart(arrayStart.replace("{", "["));
+            }
+
+            protected void setArrayEnd(String arrayEnd)
+            {
+                super.setArrayEnd(arrayEnd.replace("}", "]"));
+            }
+
+            protected void setContentStart(String contentStart)
+            {
+                // use this to infer the spacer since it isn't exposed.
+                String[] split = contentStart.split("\n", 2);
+                spacer = split.length == 2 ? split[1] : "";
+                super.setContentStart(contentStart.replace("[", "{"));
+            }
+
+            protected void setContentEnd(String contentEnd)
+            {
+                super.setContentEnd(contentEnd.replace("]", "}"));
+            }
+        }, true);
     }
 }

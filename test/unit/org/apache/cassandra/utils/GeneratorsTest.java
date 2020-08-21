@@ -1,12 +1,13 @@
 package org.apache.cassandra.utils;
 
+import com.google.common.net.InternetDomainName;
 import org.junit.Test;
 
 import org.assertj.core.api.Assertions;
 
 import static org.quicktheories.QuickTheory.qt;
 
-public class CassandraGeneratorsTest
+public class GeneratorsTest
 {
     @Test
     public void randomUUID()
@@ -20,4 +21,16 @@ public class CassandraGeneratorsTest
                       .isEqualTo(2);
         });
     }
+
+    @Test
+    public void dnsDomainName()
+    {
+        qt().forAll(Generators.DNS_DOMAIN_NAME).checkAssert(InternetDomainName::from);
+    }
+
+//    @Test
+//    public void inetAddress()
+//    {
+//        qt().forAll(Generators.INET_ADDRESS_GEN).checkAssert(System.out::println);
+//    }
 }
