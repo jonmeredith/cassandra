@@ -113,8 +113,8 @@ public class MessagePropertyTest implements Serializable
                                           versionToHumanReadable(version),
                                           message.header.verb,
                                           // toString methods are not relyable for messages, so use reflection to generate one
-                                          new Object() { public String toString() { return ReflectionToStringBuilder.reflectionToString(message); } },
-                                          new Object() { public String toString() { return ReflectionToStringBuilder.reflectionToString(read); } })
+                                          new Object() { public String toString() { return CassandraGenerators.toStringRecursive(message); } },
+                                          new Object() { public String toString() { return CassandraGenerators.toStringRecursive(read); } })
                                       .isEqualTo(ByteBufferUtil.bytesToHex(first.buffer()));
                         }
                     }));

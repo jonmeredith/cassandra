@@ -427,7 +427,11 @@ public final class CassandraGenerators
         return fn;
     }
 
-    private static String toStringRecursive(Object o)
+    /**
+     * Uses reflection to generate a toString.  This method is aware of common Cassandra classes and can be used for
+     * generators or tests to provide more details for debugging.
+     */
+    public static String toStringRecursive(Object o)
     {
         return ReflectionToStringBuilder.toString(o, new MultilineRecursiveToStringStyle()
         {
