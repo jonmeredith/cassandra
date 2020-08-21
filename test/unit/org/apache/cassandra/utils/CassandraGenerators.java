@@ -20,11 +20,13 @@ package org.apache.cassandra.utils;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -89,34 +91,35 @@ public final class CassandraGenerators
 {
     // utility generators for creating more complex types
     private static final Gen<String> TABLE_NAME_GEN = Generators.regexWord(SourceDSL.integers().between(1, 50));
+    private static final Gen<Integer> VERY_SMALL_POSSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 3);
     private static final Gen<Integer> SMALL_POSSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 30);
     private static final Gen<Boolean> BOOLEAN_GEN = SourceDSL.booleans().all();
 
     // types
-    private static final ImmutableMap<AbstractType<?>, Gen<ByteBuffer>> PRIMITIVE_TYPE_DATA_GENS =
-    ImmutableMap.<AbstractType<?>, Gen<ByteBuffer>>builder()
-    .put(BooleanType.instance, BOOLEAN_GEN.map(BooleanType.instance::decompose))
-    .put(ByteType.instance, SourceDSL.integers().between(Byte.MIN_VALUE, Byte.MAX_VALUE).map(Integer::byteValue).map(ByteType.instance::decompose))
-    .put(ShortType.instance, SourceDSL.integers().between(Short.MIN_VALUE, Short.MAX_VALUE).map(Integer::shortValue).map(ShortType.instance::decompose))
-    .put(Int32Type.instance, SourceDSL.integers().allPositive().map(Int32Type.instance::decompose))
-    .put(LongType.instance, SourceDSL.longs().all().map(LongType.instance::decompose))
-    .put(FloatType.instance, SourceDSL.floats().any().map(FloatType.instance::decompose))
-    .put(DoubleType.instance, SourceDSL.doubles().any().map(DoubleType.instance::decompose))
-    .put(BytesType.instance, Generators.bytes(1, 1024))
-    .put(UUIDType.instance, Generators.UUID_RANDOM_GEN.map(UUIDType.instance::decompose))
-    .put(InetAddressType.instance, Generators.INET_ADDRESS_GEN.map(InetAddressType.instance::decompose))
-    .put(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(1, 1024).map(AsciiType.instance::decompose))
-    .put(UTF8Type.instance, Generators.UTF_8_GEN.map(UTF8Type.instance::decompose))
-    .put(TimestampType.instance, Generators.DATE_GEN.map(TimestampType.instance::decompose))
-    //TODO add the following
-    // IntegerType.instance,
-    // DecimalType.instance,
-    // TimeUUIDType.instance,
-    // LexicalUUIDType.instance,
-    // SimpleDateType.instance,
-    // TimeType.instance,
-    // DurationType.instance,
-    .build();
+
+    private static final Map<AbstractType<?>, TypeSupport> PRIMITIVE_TYPE_DATA_GENS =
+    Arrays.asList(TypeSupport.of(BooleanType.instance, BOOLEAN_GEN),
+                  TypeSupport.of(ByteType.instance, SourceDSL.integers().between(Byte.MIN_VALUE, Byte.MAX_VALUE).map(Integer::byteValue)),
+                  TypeSupport.of(ShortType.instance, SourceDSL.integers().between(Short.MIN_VALUE, Short.MAX_VALUE).map(Integer::shortValue)),
+                  TypeSupport.of(Int32Type.instance, SourceDSL.integers().allPositive()),
+                  TypeSupport.of(LongType.instance, SourceDSL.longs().all()),
+                  TypeSupport.of(FloatType.instance, SourceDSL.floats().any()),
+                  TypeSupport.of(DoubleType.instance, SourceDSL.doubles().any()),
+                  TypeSupport.of(BytesType.instance, Generators.bytes(1, 1024)),
+                  TypeSupport.of(UUIDType.instance, Generators.UUID_RANDOM_GEN),
+                  TypeSupport.of(InetAddressType.instance, Generators.INET_ADDRESS_GEN),
+                  TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(1, 1024)),
+                  TypeSupport.of(UTF8Type.instance, Generators.UTF_8_GEN),
+                  TypeSupport.of(TimestampType.instance, Generators.DATE_GEN)
+                  //TODO add the following
+                  // IntegerType.instance,
+                  // DecimalType.instance,
+                  // TimeUUIDType.instance,
+                  // LexicalUUIDType.instance,
+                  // SimpleDateType.instance,
+                  // TimeType.instance,
+                  // DurationType.instance,
+    ).stream().collect(Collectors.toMap(t -> t.type, t -> t));
     public static final Gen<AbstractType<?>> PRIMITIVE_TYPE_GEN = SourceDSL.arbitrary()
                                                                            .pick(
                                                                            Stream.concat(PRIMITIVE_TYPE_DATA_GENS.keySet().stream(),
@@ -162,7 +165,11 @@ public final class CassandraGenerators
 
     }
 
-    private enum TypeKind { PRIMITIVE, SET, LIST, MAP, TUPLE, STRUCT }
+    private enum TypeKind
+    {PRIMITIVE, SET, LIST, MAP, TUPLE, STRUCT}
+
+    private static final Gen<TypeKind> TYPE_KIND_GEN = SourceDSL.arbitrary().enumValuesWithNoOrder(TypeKind.class);
+
     public static Gen<AbstractType<?>> getType()
     {
         return getType(3);
@@ -172,41 +179,45 @@ public final class CassandraGenerators
     {
         assert maxDepth >= 0 : "max depth must be positive or zero; given " + maxDepth;
         boolean atBottom = maxDepth == 0;
-        Gen<TypeKind> kindGen = SourceDSL.arbitrary().enumValues(TypeKind.class);
         return rnd -> {
             // figure out type to get
-            TypeKind kind = kindGen.generate(rnd);
+            TypeKind kind = TYPE_KIND_GEN.generate(rnd);
             switch (kind)
             {
                 case PRIMITIVE:
                     return PRIMITIVE_TYPE_GEN.generate(rnd);
-                case SET: {
+                case SET:
+                {
                     boolean multiCell = BOOLEAN_GEN.generate(rnd);
                     AbstractType<?> elements = atBottom ? PRIMITIVE_TYPE_GEN.generate(rnd) : getType(maxDepth - 1).generate(rnd);
                     return SetType.getInstance(elements, multiCell);
                 }
-                case LIST: {
+                case LIST:
+                {
                     boolean multiCell = BOOLEAN_GEN.generate(rnd);
                     AbstractType<?> elements = atBottom ? PRIMITIVE_TYPE_GEN.generate(rnd) : getType(maxDepth - 1).generate(rnd);
                     return ListType.getInstance(elements, multiCell);
                 }
-                case MAP: {
+                case MAP:
+                {
                     boolean multiCell = BOOLEAN_GEN.generate(rnd);
                     AbstractType<?> key = atBottom ? PRIMITIVE_TYPE_GEN.generate(rnd) : getType(maxDepth - 1).generate(rnd);
                     AbstractType<?> value = atBottom ? PRIMITIVE_TYPE_GEN.generate(rnd) : getType(maxDepth - 1).generate(rnd);
                     return MapType.getInstance(key, value, multiCell);
                 }
-                case TUPLE: {
-                    int numElements = SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                case TUPLE:
+                {
+                    int numElements = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
                     List<AbstractType<?>> elements = new ArrayList<>(numElements);
                     Gen<AbstractType<?>> elementGen = atBottom ? PRIMITIVE_TYPE_GEN : getType(maxDepth - 1);
                     for (int i = 0; i < numElements; i++)
                         elements.add(elementGen.generate(rnd));
                     return new TupleType(elements);
                 }
-                case STRUCT: {
+                case STRUCT:
+                {
                     boolean multiCell = BOOLEAN_GEN.generate(rnd);
-                    int numElements = SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                    int numElements = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
                     List<AbstractType<?>> fieldTypes = new ArrayList<>(numElements);
                     List<FieldIdentifier> fieldNames = new ArrayList<>(numElements);
                     Gen<AbstractType<?>> elementGen = atBottom ? PRIMITIVE_TYPE_GEN : getType(maxDepth - 1);
@@ -283,10 +294,10 @@ public final class CassandraGenerators
         ImmutableList<ColumnMetadata> columns = metadata.partitionKeyColumns();
         assert !columns.isEmpty() : "Unable to find partition key columns";
         if (columns.size() == 1)
-            return typeDataGen(columns.get(0).type);
+            return getTypeSupport(columns.get(0).type).bytesGen();
         List<Gen<ByteBuffer>> columnGens = new ArrayList<>(columns.size());
         for (ColumnMetadata cm : columns)
-            columnGens.add(typeDataGen(cm.type));
+            columnGens.add(getTypeSupport(cm.type).bytesGen());
         return rnd -> {
             ByteBuffer[] buffers = new ByteBuffer[columnGens.size()];
             for (int i = 0; i < columnGens.size(); i++)
@@ -295,79 +306,107 @@ public final class CassandraGenerators
         };
     }
 
-    private static Gen<ByteBuffer> typeDataGen(AbstractType<?> type)
+    public static TypeSupport getTypeSupport(AbstractType<?> type)
     {
+        // this doesn't affect the data, only sort order, so drop it
         if (type.isReversed())
             type = ((ReversedType<?>) type).baseType;
-        Gen<ByteBuffer> gen = PRIMITIVE_TYPE_DATA_GENS.get(type);
-        if (gen == null)
+        TypeSupport gen = PRIMITIVE_TYPE_DATA_GENS.get(type);
+        if (gen != null)
+            return gen;
+        // might be... complex...
+        if (type instanceof SetType)
         {
-            // ok, maybe this is complex... just saying...
-            if (type instanceof SetType)
-            {
-                SetType setType = (SetType) type;
-                Gen<ByteBuffer> elementGen = typeDataGen(setType.getElementsType());
-                return rnd -> {
-                    int size = SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
-                    HashSet<Object> set = Sets.newHashSetWithExpectedSize(size);
-                    for (int i = 0; i < size; i++)
-                        set.add(elementGen.generate(rnd));
-                    return setType.decompose(set);
-                };
-            }
-            else if (type instanceof ListType)
-            {
-                ListType listType = (ListType) type;
-                Gen<ByteBuffer> elementGen = typeDataGen(listType.getElementsType());
-                return rnd -> {
-                    int size = SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
-                    List<Object> set = new ArrayList<>(size);
-                    for (int i = 0; i < size; i++)
-                        set.add(elementGen.generate(rnd));
-                    return listType.decompose(set);
-                };
-            }
-            else if (type instanceof MapType)
-            {
-                MapType mapType = (MapType) type;
-                Gen<ByteBuffer> keyGen = typeDataGen(mapType.getKeysType());
-                Gen<ByteBuffer> valueGen = typeDataGen(mapType.getValuesType());
-                return rnd -> {
-                    int size = SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
-                    Map<Object, Object> map = Maps.newHashMapWithExpectedSize(size);
-                    // if there is conflict thats fine
-                    for (int i = 0; i < size; i++)
-                        map.put(keyGen.generate(rnd), valueGen.generate(rnd));
-                    return mapType.decompose(map);
-                };
-            }
-            else if (type instanceof TupleType) // includes UserType
-            {
-                TupleType tupleType = (TupleType) type;
-                List<Gen<ByteBuffer>> elementsGen = tupleType.allTypes().stream().map(CassandraGenerators::typeDataGen).collect(Collectors.toList());;
-                return rnd -> {
-                    ByteBuffer[] buffers = new ByteBuffer[elementsGen.size()];
-                    for (int i = 0; i < elementsGen.size(); i++)
-                        buffers[i] = elementsGen.get(i).generate(rnd);
-                    return TupleType.buildValue(buffers);
-                };
-            }
-            throw new UnsupportedOperationException("Unsupported type: " + type);
+            SetType setType = (SetType) type;
+            TypeSupport elementSupport = getTypeSupport(setType.getElementsType());
+            return TypeSupport.of(setType, rnd -> {
+                int size = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                HashSet<Object> set = Sets.newHashSetWithExpectedSize(size);
+                for (int i = 0; i < size; i++)
+                    set.add(elementSupport.valueGen.generate(rnd));
+                return set;
+            });
         }
-        return gen;
+        else if (type instanceof ListType)
+        {
+            ListType listType = (ListType) type;
+            TypeSupport elementSupport = getTypeSupport(listType.getElementsType());
+            return TypeSupport.of(listType, rnd -> {
+                int size = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                List<Object> list = new ArrayList<>(size);
+                for (int i = 0; i < size; i++)
+                    list.add(elementSupport.valueGen.generate(rnd));
+                return list;
+            });
+        }
+        else if (type instanceof MapType)
+        {
+            MapType mapType = (MapType) type;
+            TypeSupport keySupport = getTypeSupport(mapType.getKeysType());
+            TypeSupport valueSupport = getTypeSupport(mapType.getValuesType());
+            return TypeSupport.of(mapType, rnd -> {
+                int size = VERY_SMALL_POSSITIVE_SIZE_GEN.generate(rnd);
+                Map<Object, Object> map = Maps.newHashMapWithExpectedSize(size);
+                // if there is conflict thats fine
+                for (int i = 0; i < size; i++)
+                    map.put(keySupport.valueGen.generate(rnd), valueSupport.valueGen.generate(rnd));
+                return map;
+            });
+        }
+        else if (type instanceof TupleType) // includes UserType
+        {
+            TupleType tupleType = (TupleType) type;
+            List<TypeSupport> elementsSupport = tupleType.allTypes().stream().map(CassandraGenerators::getTypeSupport).collect(Collectors.toList());
+            return TypeSupport.of(tupleType, rnd -> {
+                ByteBuffer[] elements = new ByteBuffer[elementsSupport.size()];
+                for (int i = 0; i < elementsSupport.size(); i++)
+                    elements[i] = elementsSupport.get(i).toBytes.apply(elementsSupport.get(i).valueGen.generate(rnd));
+                return TupleType.buildValue(elements);
+            }, i -> i);
+        }
+        throw new UnsupportedOperationException("Unsupported type: " + type);
     }
 
-    private static final class TypeSupport<T>
+    public static final class TypeSupport
     {
-        private final AbstractType<T> type;
-        private final Gen<T> valueGen;
-        private final Gen<ByteBuffer> bytesGen;
+        public final AbstractType<Object> type;
+        public final Gen<Object> valueGen;
+        public final Function<Object, ByteBuffer> toBytes;
 
-        TypeSupport(AbstractType<T> type, Gen<T> valueGen)
+        public TypeSupport(AbstractType<? extends Object> type, Gen<? extends Object> valueGen)
         {
-            this.type = Objects.requireNonNull(type);
-            this.valueGen = Objects.requireNonNull(valueGen);
-            this.bytesGen = valueGen.map(type::decompose);
+            this.type = (AbstractType<Object>) Objects.requireNonNull(type);
+            this.valueGen = (Gen<Object>) Objects.requireNonNull(valueGen);
+            this.toBytes = this.type::decompose;
+        }
+
+        public TypeSupport(AbstractType<? extends Object> type, Gen<? extends Object> valueGen, Function<Object, ByteBuffer> toBytes)
+        {
+            this.type = (AbstractType<Object>) Objects.requireNonNull(type);
+            this.valueGen = (Gen<Object>) Objects.requireNonNull(valueGen);
+            this.toBytes = Objects.requireNonNull(toBytes);
+        }
+
+        public static <T> TypeSupport of(AbstractType<T> type, Gen<T> valueGen)
+        {
+            return new TypeSupport(type, valueGen);
+        }
+
+        public static <T> TypeSupport of(AbstractType<?> type, Gen<T> valueGen, Function<? extends T, ByteBuffer> toBytes)
+        {
+            return new TypeSupport(type, valueGen, (Function<Object, ByteBuffer>) toBytes);
+        }
+
+        public Gen<ByteBuffer> bytesGen()
+        {
+            return rnd -> toBytes.apply(valueGen.generate(rnd));
+        }
+
+        public String toString()
+        {
+            return "TypeSupport{" +
+                   "type=" + type +
+                   '}';
         }
     }
 
@@ -390,7 +429,8 @@ public final class CassandraGenerators
 
     private static String toStringRecursive(Object o)
     {
-        return ReflectionToStringBuilder.toString(o, new MultilineRecursiveToStringStyle() {
+        return ReflectionToStringBuilder.toString(o, new MultilineRecursiveToStringStyle()
+        {
             private String spacer = "";
 
             {
@@ -424,7 +464,6 @@ public final class CassandraGenerators
                     cql = cql.replace("\n", "\n  " + spacer);
                     cql = "\n  " + spacer + cql;
                     value = cql;
-
                 }
                 super.appendDetail(buffer, fieldName, value);
             }
