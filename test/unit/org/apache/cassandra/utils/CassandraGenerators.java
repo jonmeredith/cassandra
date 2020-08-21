@@ -99,7 +99,7 @@ public final class CassandraGenerators
     Arrays.asList(TypeSupport.of(BooleanType.instance, BOOLEAN_GEN),
                   TypeSupport.of(ByteType.instance, SourceDSL.integers().between(Byte.MIN_VALUE, Byte.MAX_VALUE).map(Integer::byteValue)),
                   TypeSupport.of(ShortType.instance, SourceDSL.integers().between(Short.MIN_VALUE, Short.MAX_VALUE).map(Integer::shortValue)),
-                  TypeSupport.of(Int32Type.instance, SourceDSL.integers().allPositive()),
+                  TypeSupport.of(Int32Type.instance, SourceDSL.integers().all()),
                   TypeSupport.of(LongType.instance, SourceDSL.longs().all()),
                   TypeSupport.of(FloatType.instance, SourceDSL.floats().any()),
                   TypeSupport.of(DoubleType.instance, SourceDSL.doubles().any()),
