@@ -30,6 +30,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
 
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -236,6 +237,13 @@ public class InstanceConfig implements IInstanceConfig
                     .findFirst()
                     .get();
         }
+        // Allow tests to specify a yaml fragment to configure members that are not
+        // types shared by the instance classloaders
+        else if (valueField.getType() != java.lang.String.class && value instanceof String)
+        {
+            value = YamlConfigurationLoader.parseYamlString(valueField.getType(), (String) value);
+        }
+
         try
         {
             valueField.set(writeToConfig, value);

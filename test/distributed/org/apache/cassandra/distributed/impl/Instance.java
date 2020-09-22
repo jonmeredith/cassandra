@@ -266,6 +266,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         {
             public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress toAddress)
             {
+                if (isShutdown())
+                    return false;
+
                 // Port is not passed in, so take a best guess at the destination port from this instance
                 IInstance to = cluster.get(NetworkTopology.addressAndPort(toAddress,
                                                                           instance.config().broadcastAddress().getPort()));
@@ -278,6 +281,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             public boolean allowIncomingMessage(MessageIn message, int id)
             {
+                if (isShutdown())
+                    return false;
+
                 // Port is not passed in, so take a best guess at the destination port from this instance
                 IInstance from = cluster.get(NetworkTopology.addressAndPort(message.from,
                                                                             instance.config().broadcastAddress().getPort()));

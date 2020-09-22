@@ -119,6 +119,27 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
+    /**
+     * Load a fragment of the configuration as the given class
+     * @param klass Class to load into
+     * @param yamlString Yaml fragment
+     * @param <T> Configuration element class
+     * @return configured class created from yaml fragment
+     */
+    static public <T> T parseYamlString(Class<T> klass, String yamlString)
+    {
+        org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor(klass, Thread.currentThread().getContextClassLoader());
+        TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
+        seedDesc.putMapPropertyType("parameters", String.class, String.class);
+        constructor.addTypeDescription(seedDesc);
+        MissingPropertiesChecker propertiesChecker = new MissingPropertiesChecker();
+        constructor.setPropertyUtils(propertiesChecker);
+        Yaml yaml = new Yaml(constructor);
+        T result = yaml.loadAs(new ByteArrayInputStream(yamlString.getBytes()), klass);
+        propertiesChecker.check();
+        return result;
+    }
+
     private static class MissingPropertiesChecker extends PropertyUtils
     {
         private final Set<String> missingProperties = new HashSet<>();
