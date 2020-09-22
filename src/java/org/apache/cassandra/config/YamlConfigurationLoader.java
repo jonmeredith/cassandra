@@ -39,6 +39,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
@@ -125,11 +126,34 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-    static class CustomConstructor extends Constructor
+    /**
+     * Load a fragment of the configuration as the given class
+     * @param klass Class to load into
+     * @param yamlString Yaml fragment
+     * @param <T> Configuration element class
+     * @return configured class created from yaml fragment
+     */
+    static public <T> T parseYamlString(Class<T> klass, String yamlString)
+    {
+        Constructor constructor = new CustomConstructor(klass, Thread.currentThread().getContextClassLoader());
+        MissingPropertiesChecker propertiesChecker = new MissingPropertiesChecker();
+        constructor.setPropertyUtils(propertiesChecker);
+        Yaml yaml = new Yaml(constructor);
+        T result = yaml.loadAs(new ByteArrayInputStream(yamlString.getBytes()), klass);
+        propertiesChecker.check();
+        return result;
+    }
+
+    static class CustomConstructor extends CustomClassLoaderConstructor
     {
         CustomConstructor(Class<?> theRoot)
         {
-            super(theRoot);
+            this(theRoot, Yaml.class.getClassLoader());
+        }
+
+        CustomConstructor(Class<?> theRoot, ClassLoader classLoader)
+        {
+            super(theRoot, classLoader);
 
             TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
