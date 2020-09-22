@@ -264,6 +264,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private void registerInboundFilter(ICluster cluster)
     {
         MessagingService.instance().inboundSink.add(message -> {
+            if (isShutdown())
+                return false;
             IMessage serialized = serializeMessage(message.from(), toCassandraInetAddressAndPort(broadcastAddress()), message);
             int fromNum = cluster.get(serialized.from()).config().num();
             int toNum = config.num(); // since this instance is reciving the message, to will always be this instance
@@ -274,6 +276,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private void registerOutboundFilter(ICluster cluster)
     {
         MessagingService.instance().outboundSink.add((message, to) -> {
+            if (isShutdown())
+                return false;
             IMessage serialzied = serializeMessage(message.from(), to, message);
             int fromNum = config.num(); // since this instance is sending the message, from will always be this instance
             int toNum = cluster.get(fromCassandraInetAddressAndPort(to)).config().num();
