@@ -19,7 +19,6 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
@@ -29,9 +28,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.api.IInstanceConfig;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.locator.SimpleSeedProvider;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.*;
