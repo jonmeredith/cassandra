@@ -430,6 +430,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         schemaChange(query, false);
     }
 
+    /**
+     * Change the schema of the cluster, tolerating stopped nodes.  N.B. the schema
+     * will not automatically be updated when stopped nodes are restarted, individual tests need to
+     * re-synchronize somehow (by gossip or some other mechanism).
+     * @param query Schema altering statement
+     */
     public void schemaChangeIgnoringStoppedInstances(String query)
     {
         schemaChange(query, true);
