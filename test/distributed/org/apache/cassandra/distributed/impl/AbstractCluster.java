@@ -437,11 +437,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     private void schemaChange(String query, boolean ignoreStoppedInstances)
     {
-        get(1).sync(() -> {
+        I instance = ignoreStoppedInstances ? stream().filter(i -> !i.isShutdown()).findFirst().get() : get(1);
+        instance.sync(() -> {
             try (SchemaChangeMonitor monitor = new SchemaChangeMonitor())
             {
                 // execute the schema change
-                coordinator(1).execute(query, ConsistencyLevel.ALL);
+                coordinator(instance.config().num()).execute(query, ConsistencyLevel.ALL);
                 if (ignoreStoppedInstances)
                     monitor.ignoreStoppedInstances();
                 monitor.waitForCompletion();
