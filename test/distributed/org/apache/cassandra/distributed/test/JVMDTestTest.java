@@ -19,13 +19,18 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.junit.Test;
 
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -90,18 +95,29 @@ public class JVMDTestTest extends TestBaseImpl
     }
 
     @Test
-    public void useYamlFragmentInConfigTest() throws IOException
+    public void nonSharedConfigClassTest() throws IOException
     {
-        String newKeystore = "/new/path/to/keystore";
-        String newTruststore= "/new/path/to/truststore";
+        ParameterizedClass commitLogCompression = new ParameterizedClass("org.apache.cassandra.io.compress.LZ4Compressor",
+                                                                         Collections.emptyMap());
+        EncryptionOptions encryptionOptions = new EncryptionOptions()
+                                              .withCipherSuites("FakeCipher")
+                                              .withOptional(false)
+                                              .withEnabled(false);
+
         try (Cluster cluster = Cluster.build(1)
-                                      .withConfig(c -> c.set("server_encryption_options",
-                                                             "keystore: " + newKeystore + "\n" +
-                                                             "truststore: " + newTruststore + "\n")).start())
+                                      .withConfig(c -> {
+                                          c.set("concurrent_reads", 321);
+                                          c.set("internode_compression", Config.InternodeCompression.dc);
+                                          c.set("client_encryption_options", encryptionOptions);
+                                          c.set("commitlog_compression", commitLogCompression);
+                                      }).start())
         {
             cluster.get(1).runOnInstance(() -> {
-                assertEquals(newKeystore, DatabaseDescriptor.getInternodeMessagingEncyptionOptions().keystore);
-                assertEquals(newTruststore, DatabaseDescriptor.getInternodeMessagingEncyptionOptions().truststore);
+                assertEquals(321, Stage.READ.getMaximumPoolSize());
+                assertEquals(Config.InternodeCompression.dc, DatabaseDescriptor.internodeCompression());
+                assertEquals(Collections.singletonList("FakeCipher"), DatabaseDescriptor.getNativeProtocolEncryptionOptions().cipher_suites);
+                assertEquals("org.apache.cassandra.io.compress.LZ4Compressor", DatabaseDescriptor.getCommitLogCompression().class_name);
+                assertTrue(DatabaseDescriptor.getCommitLogCompression().parameters.isEmpty());
             });
         }
     }

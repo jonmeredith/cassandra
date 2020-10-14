@@ -52,6 +52,7 @@ import org.apache.cassandra.concurrent.SharedExecutorPool;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -131,13 +132,6 @@ import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCass
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
-    private static final Map<Class<?>, Function<Object, Object>> mapper = new HashMap<Class<?>, Function<Object, Object>>() {{
-        this.put(IInstanceConfig.ParameterizedClass.class, (obj) -> {
-            IInstanceConfig.ParameterizedClass pc = (IInstanceConfig.ParameterizedClass) obj;
-            return new org.apache.cassandra.config.ParameterizedClass(pc.class_name, pc.parameters);
-        });
-    }};
-
     public final IInstanceConfig config;
 
     // should never be invoked directly, so that it is instantiated on other class loader;
@@ -511,9 +505,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private Config loadConfig(IInstanceConfig overrides)
     {
-        Config config = new Config();
-        overrides.propagate(config, mapper);
-        return config;
+        Map<String,Object> params = ((InstanceConfig) overrides).getParams(); // until dtest API extended
+        return YamlConfigurationLoader.fromMap(params, Config.class);
     }
 
     private void initializeRing(ICluster cluster)

@@ -358,7 +358,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         long token = tokenSupplier.token(nodeNum);
         NetworkTopology topology = buildNetworkTopology(provisionStrategy, nodeIdTopology);
         InstanceConfig config = InstanceConfig.generate(nodeNum, provisionStrategy, topology, root, Long.toString(token), datadirCount);
-        config.set("dtest.api.cluster_id", clusterId);
+        config.set("dtest.api.cluster_id", clusterId.toString());
         if (configUpdater != null)
             configUpdater.accept(config);
         return config;

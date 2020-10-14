@@ -43,12 +43,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.composer.Composer;
 import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
+import org.yaml.snakeyaml.nodes.Node;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
 {
@@ -119,7 +121,14 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new AssertionError(e);
             }
 
-            return loadConfig(configBytes);
+
+            Constructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
+            PropertiesChecker propertiesChecker = new PropertiesChecker();
+            constructor.setPropertyUtils(propertiesChecker);
+            Yaml yaml = new Yaml(constructor);
+            Config result = loadConfig(yaml, configBytes);
+            propertiesChecker.check();
+            return result;
         }
         catch (YAMLException e)
         {
@@ -128,20 +137,23 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-    public static <T> T parseYamlString(Class<T> klass, String yamlString)
+    @SuppressWarnings("unchecked") //getSingleData returns Object, not T
+    public static <T> T fromMap(Map<String,Object> map, Class<T> klass)
     {
-        return parseYamlBytes(klass, yamlString.getBytes());
-    }
-
-    private static <T> T parseYamlBytes(Class<T> klass, byte[] configBytes)
-    {
-        Constructor constructor = new CustomConstructor(klass, Thread.currentThread().getContextClassLoader());
-        PropertiesChecker propertiesChecker = new PropertiesChecker();
+        Constructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
+        YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker();
         constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = new Yaml(constructor);
-        T result = yaml.loadAs(new ByteArrayInputStream(configBytes), klass);
-        propertiesChecker.check();
-        return result;
+        Node node = yaml.represent(map);
+        constructor.setComposer(new Composer(null, null)
+        {
+            @Override
+            public Node getSingleNode()
+            {
+                return node;
+            }
+        });
+        return (T) constructor.getSingleData(klass);
     }
 
     static class CustomConstructor extends CustomClassLoaderConstructor
@@ -174,9 +186,9 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-    private static Config loadConfig(byte[] configBytes)
+    private static Config loadConfig(Yaml yaml, byte[] configBytes)
     {
-        Config config = parseYamlBytes(Config.class, configBytes);
+        Config config = yaml.loadAs(new ByteArrayInputStream(configBytes), Config.class);
         // If the configuration file is empty yaml will return null. In this case we should use the default
         // configuration to avoid hitting a NPE at a later stage.
         return config == null ? new Config() : config;
