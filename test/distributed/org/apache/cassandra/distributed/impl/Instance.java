@@ -49,6 +49,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -119,13 +120,6 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
-    private static final Map<Class<?>, Function<Object, Object>> mapper = new HashMap<Class<?>, Function<Object, Object>>() {{
-        this.put(IInstanceConfig.ParameterizedClass.class, (obj) -> {
-            IInstanceConfig.ParameterizedClass pc = (IInstanceConfig.ParameterizedClass) obj;
-            return new org.apache.cassandra.config.ParameterizedClass(pc.class_name, pc.parameters);
-        });
-    }};
-
     public final IInstanceConfig config;
 
     // should never be invoked directly, so that it is instantiated on other class loader;
@@ -591,9 +585,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private static Config loadConfig(IInstanceConfig overrides)
     {
-        Config config = new Config();
-        overrides.propagate(config, mapper);
-        return config;
+        Map<String,Object> params = ((InstanceConfig) overrides).getParams(); // until dtest API extended
+        return YamlConfigurationLoader.fromMap(params, Config.class);
     }
 
     private void initializeRing(ICluster cluster)
