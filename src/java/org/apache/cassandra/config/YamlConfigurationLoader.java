@@ -38,12 +38,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.composer.Composer;
 import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
+import org.yaml.snakeyaml.nodes.Node;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
 {
@@ -126,22 +128,23 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-    /**
-     * Load a fragment of the configuration as the given class
-     * @param klass Class to load into
-     * @param yamlString Yaml fragment
-     * @param <T> Configuration element class
-     * @return configured class created from yaml fragment
-     */
-    static public <T> T parseYamlString(Class<T> klass, String yamlString)
+    @SuppressWarnings("unchecked") //getSingleData returns Object, not T
+    public static <T> T fromMap(Map<String,Object> map, Class<T> klass)
     {
-        Constructor constructor = new CustomConstructor(klass, Thread.currentThread().getContextClassLoader());
-        MissingPropertiesChecker propertiesChecker = new MissingPropertiesChecker();
+        Constructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
+        YamlConfigurationLoader.MissingPropertiesChecker propertiesChecker = new YamlConfigurationLoader.MissingPropertiesChecker();
         constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = new Yaml(constructor);
-        T result = yaml.loadAs(new ByteArrayInputStream(yamlString.getBytes()), klass);
-        propertiesChecker.check();
-        return result;
+        Node node = yaml.represent(map);
+        constructor.setComposer(new Composer(null, null)
+        {
+            @Override
+            public Node getSingleNode()
+            {
+                return node;
+            }
+        });
+        return (T) constructor.getSingleData(klass);
     }
 
     static class CustomConstructor extends CustomClassLoaderConstructor
