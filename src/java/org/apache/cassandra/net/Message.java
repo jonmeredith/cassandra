@@ -1304,16 +1304,25 @@ public class Message<T>
         switch (version)
         {
             case VERSION_30:
+                int currentSize30 = serializer.serializedSize(this, VERSION_30);
                 if (serializedSize30 == 0)
-                    serializedSize30 = serializer.serializedSize(this, VERSION_30);
+                    serializedSize30 = currentSize30;
+                else
+                    assert currentSize30 == serializedSize30 : String.format("serializedSize30 difference previous=%d current=%d message=%s", serializedSize30, currentSize30, this);
                 return serializedSize30;
             case VERSION_3014:
+                int currentSize3014 = serializer.serializedSize(this, VERSION_3014);
                 if (serializedSize3014 == 0)
-                    serializedSize3014 = serializer.serializedSize(this, VERSION_3014);
+                    serializedSize3014 = currentSize3014;
+                else
+                    assert currentSize3014 == serializedSize3014 : String.format("serializedSize3014 difference previous=%d current=%d message=%s", serializedSize3014, currentSize3014, this);
                 return serializedSize3014;
             case VERSION_40:
+                int currentSize40 = serializer.serializedSize(this, VERSION_40);
                 if (serializedSize40 == 0)
-                    serializedSize40 = serializer.serializedSize(this, VERSION_40);
+                    serializedSize40 = currentSize40;
+                else
+                    assert currentSize40 == serializedSize40 : String.format("serializedSize40 difference previous=%d current=%d message=%s", serializedSize40, currentSize40, this);
                 return serializedSize40;
             default:
                 throw new IllegalStateException();
