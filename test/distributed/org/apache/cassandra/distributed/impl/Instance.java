@@ -505,7 +505,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private Config loadConfig(IInstanceConfig overrides)
     {
-        Map<String,Object> params = ((InstanceConfig) overrides).getParams(); // until dtest API extended
+        Map<String,Object> params = ((InstanceConfig) overrides).getParams();
         return YamlConfigurationLoader.fromMap(params, Config.class);
     }
 
