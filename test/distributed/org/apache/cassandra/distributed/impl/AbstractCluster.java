@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -391,12 +390,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public I getFirstRunningInstance()
     {
-        Optional<I> maybeFirstInstance = stream().filter(i -> !i.isShutdown()).findFirst();
-        if (maybeFirstInstance.isPresent())
-        {
-            return maybeFirstInstance.get();
-        }
-        throw new IllegalStateException("All instances are shutdown");
+        return stream().filter(i -> !i.isShutdown()).findFirst().orElseThrow(
+            () -> new IllegalStateException("All instances are shutdown"));
     }
 
     public int size()
@@ -493,7 +488,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             try (SchemaChangeMonitor monitor = new SchemaChangeMonitor())
             {
                 // execute the schema change
-                coordinator(instance.config().num()).execute(query, ConsistencyLevel.ALL);
+                instance.coordinator().execute(query, ConsistencyLevel.ALL);
                 if (ignoreStoppedInstances)
                     monitor.ignoreStoppedInstances();
                 monitor.waitForCompletion();
