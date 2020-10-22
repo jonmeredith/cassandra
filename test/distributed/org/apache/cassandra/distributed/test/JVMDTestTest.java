@@ -21,9 +21,11 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import org.apache.cassandra.concurrent.Stage;
@@ -97,12 +99,11 @@ public class JVMDTestTest extends TestBaseImpl
     @Test
     public void nonSharedConfigClassTest() throws IOException
     {
-        ParameterizedClass commitLogCompression = new ParameterizedClass("org.apache.cassandra.io.compress.LZ4Compressor",
-                                                                         Collections.emptyMap());
-        EncryptionOptions encryptionOptions = new EncryptionOptions()
-                                              .withCipherSuites("FakeCipher")
-                                              .withOptional(false)
-                                              .withEnabled(false);
+        Map<String,Object> commitLogCompression = ImmutableMap.of("class_name", "org.apache.cassandra.io.compress.LZ4Compressor",
+                                                                  "parameters", Collections.<String,Object>emptyMap());
+        Map<String,Object> encryptionOptions = ImmutableMap.of("cipher_suites", Collections.singletonList("FakeCipher"),
+                                                               "optional", false,
+                                                               "enabled", false);
 
         try (Cluster cluster = Cluster.build(1)
                                       .withConfig(c -> {
