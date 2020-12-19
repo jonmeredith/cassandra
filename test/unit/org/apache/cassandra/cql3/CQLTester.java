@@ -381,6 +381,18 @@ public abstract class CQLTester
         return allArgs;
     }
 
+    public static List<String> buildSSTableLoaderArgs(List<String> args)
+    {
+        List<String> allArgs = new ArrayList<>();
+        allArgs.add("bin/sstableloader");
+        allArgs.add("-p");
+        allArgs.add(Integer.toString(jmxPort));
+        allArgs.add("-h");
+        allArgs.add(jmxHost == null ? "127.0.0.1" : jmxHost);
+        allArgs.addAll(args);
+        return allArgs;
+    }
+
     public static List<String> buildCqlshArgs(List<String> args)
     {
         List<String> allArgs = new ArrayList<>();

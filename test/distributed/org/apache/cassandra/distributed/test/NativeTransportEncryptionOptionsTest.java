@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.tools.ToolRunner;
 
 public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
 {

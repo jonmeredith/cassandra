@@ -184,6 +184,16 @@ public class ToolRunner
         return invoke(CQLTester.buildNodetoolArgs(args));
     }
 
+    public static ToolResult invokeSSTableLoader(String... args)
+    {
+        return invokeSSTableLoader(Arrays.asList(args));
+    }
+
+    public static ToolResult invokeSSTableLoader(List<String> args)
+    {
+        return invoke(CQLTester.buildSSTableLoaderArgs(args));
+    }
+
     public static ToolResult invoke(List<String> args)
     {
         return invoke(args.toArray(new String[args.size()]));

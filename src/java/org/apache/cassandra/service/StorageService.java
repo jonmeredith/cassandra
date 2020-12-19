@@ -899,6 +899,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             MessagingService.instance().listen();
 
             UUID localHostId = SystemKeyspace.getLocalHostId();
+            logger.info("@@@ Local HostId {} @@@", localHostId);
 
             if (replacing)
             {

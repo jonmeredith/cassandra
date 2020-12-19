@@ -17,19 +17,34 @@
  */
 package org.apache.cassandra.tools;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.util.Set;
+
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManagerFactory;
 
 import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.JdkSSLOptions;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
 import com.datastax.driver.core.SSLOptions;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 
+import com.datastax.driver.core.Session;
+import com.datastax.shaded.netty.handler.ssl.SslContextBuilder;
+import com.datastax.shaded.netty.handler.ssl.SslProvider;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -49,6 +64,96 @@ public class BulkLoader
         load(options);
     }
 
+//    static SslContext altSslContext()
+//    {
+//        try
+//        {
+//            KeyStore ks = KeyStore.getInstance("JKS");
+//            // make sure you close this stream properly (not shown here for brevity)
+//            InputStream trustStore = new FileInputStream("test/conf/cassandra_ssl_test.keystore");
+//            ks.load(trustStore, "cassandra".toCharArray());
+//            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+//            tmf.init(ks);
+//
+//            SslContextBuilder builder = SslContextBuilder
+//                                        .forClient()
+//                                        .sslProvider(SslProvider.JDK)
+//                                        .trustManager(tmf);
+//            return builder.build();
+//        }
+//        catch (IOException e)
+//        {
+//            e.printStackTrace();
+//        }
+//        catch (CertificateException e)
+//        {
+//            e.printStackTrace();
+//        }
+//        catch (FileNotFoundException e)
+//        {
+//            e.printStackTrace();
+//        }
+//        catch (NoSuchAlgorithmException e)
+//        {
+//            e.printStackTrace();
+//        }
+//        catch (SSLException e)
+//        {
+//            e.printStackTrace();
+//        }
+//        catch (KeyStoreException e)
+//        {
+//            e.printStackTrace();
+//        }
+//    }
+
+    public static void checkDriverCanConnect(SSLOptions sslOptions, String host, int port)
+    {
+        com.datastax.driver.core.Cluster cluster = null;
+        try
+        {
+            cluster = com.datastax.driver.core.Cluster.builder().addContactPoints(host).withPort(port)
+                                                      .withSSL(sslOptions)
+                                                      .build();
+
+            // The Session is what you use to execute queries. Likewise, it is thread-safe and should be
+            // reused.
+            Session session = cluster.connect();
+
+            // We use execute to send a query to Cassandra. This returns a ResultSet, which is essentially
+            // a collection
+            // of Row objects.
+            ResultSet rs = session.execute("select release_version from system.local");
+            //  Extract the first row (which is the only one in this case).
+            Row row = rs.one();
+
+            // Extract the value of the first (and only) column from the row.
+            String releaseVersion = row.getString("release_version");
+            System.out.printf("@@@ Cassandra version from inside bulk loader is: %s%n", releaseVersion);
+
+            cluster.close();
+//            trustStore.close();
+        } catch (Throwable tr)
+        {
+            tr.printStackTrace();
+        }
+//        catch (IOException e)
+//        {
+//            e.printStackTrace();
+//        }
+//        catch (CertificateException e)
+//        {
+//            e.printStackTrace();
+//        }
+//        catch (NoSuchAlgorithmException e)
+//        {
+//            e.printStackTrace();
+//        }
+//        catch (KeyStoreException e)
+//        {
+//            e.printStackTrace();
+//        }
+    }
     public static void load(LoaderOptions options) throws BulkLoadException
     {
         DatabaseDescriptor.toolInitialization();
@@ -72,6 +177,10 @@ public class BulkLoader
         ProgressIndicator indicator = new ProgressIndicator();
         try
         {
+//            SSLOptions sslOptions = new RemoteEndpointAwareNettySSLOptions(altSslContext());
+//            checkDriverCanConnect(sslOptions, options.hosts.iterator().next().getHostString(), options.nativePort);
+            checkDriverCanConnect(buildSSLOptions(options.clientEncOptions), options.hosts.iterator().next().getHostString(), options.nativePort);
+
             if (options.noProgress)
             {
                 future = loader.stream(options.ignores);
