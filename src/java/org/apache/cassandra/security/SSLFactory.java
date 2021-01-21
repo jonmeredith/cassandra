@@ -171,7 +171,7 @@ public final class SSLFactory
         {
             SSLContext ctx = SSLContext.getInstance("TLS");
             ctx.init(null, null, null);
-            SSLParameters params = ctx.getSupportedSSLParameters();
+            SSLParameters params = ctx.getDefaultSSLParameters();
             String[] protocols = params.getProtocols();
             return Arrays.asList(protocols);
         }
