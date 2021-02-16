@@ -18,19 +18,22 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.shared.Versions;
 
+import java.util.function.Consumer;
+
 public class Pre40MessageFilterTest extends UpgradeTestBase
 {
-    @Test
-    public void reserializePre40RequestPaxosTest() throws Throwable
+    public void reserializePre40RequestPaxosTest(Consumer<IInstanceConfig> configConsumer) throws Throwable
     {
         new UpgradeTestBase.TestCase()
         .nodes(2)
-        .withConfig(config -> config.set("truncate_request_timeout_in_ms", 360000L))
+        .withConfig(configConsumer)
         .nodesToUpgrade(1)
         .upgrade(Versions.Major.v30, Versions.Major.v4)
         .setup((cluster) -> {
@@ -45,5 +48,17 @@ public class Pre40MessageFilterTest extends UpgradeTestBase
                                               ConsistencyLevel.QUORUM,
                                               2, 1, 1, 1);
         }).run();
+    }
+
+    @Test
+    public void reserializePre40RequestPaxosWithoutNetworkTest() throws Throwable
+    {
+        reserializePre40RequestPaxosTest(config -> {});
+    }
+
+    @Test
+    public void reserializePre40RequestPaxosWithNetworkTest() throws Throwable
+    {
+        reserializePre40RequestPaxosTest(config -> config.with(Feature.NETWORK, Feature.GOSSIP));
     }
 }
