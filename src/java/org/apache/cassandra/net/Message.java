@@ -757,7 +757,7 @@ public class Message<T>
         {
             serializeHeaderPost40(message.header, out, version);
             out.writeUnsignedVInt(message.payloadSize(version));
-            message.getPre40Serializer().serialize(message.payload, out, version);
+            message.getPayloadSerializer().serialize(message.payload, out, version);
         }
 
         private <T> Message<T> deserializePost40(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
@@ -916,7 +916,7 @@ public class Message<T>
             {
                 int payloadSize = message.payloadSize(version);
                 out.writeInt(payloadSize);
-                message.getPre40Serializer().serialize(message.payload, out, version);
+                message.getPayloadSerializer().serialize(message.payload, out, version);
             }
             else
             {
@@ -941,7 +941,7 @@ public class Message<T>
                 skipHeaderPre40(in);
 
             int payloadSize = in.readInt();
-            T payload = deserializePayloadPre40(in, version, getPre40Serializer(header.verb, header.id, header.from), payloadSize);
+            T payload = deserializePayloadPre40(in, version, getPayloadSerializer(header.verb, header.id, header.from), payloadSize);
 
             Message<T> message = new Message<>(header, payload);
 
@@ -1283,19 +1283,20 @@ public class Message<T>
         private <T> int payloadSize(Message<T> message, int version)
         {
             long payloadSize = message.payload != null && message.payload != NoPayload.noPayload
-                             ? message.getPre40Serializer().serializedSize(message.payload, version)
+                             ? message.getPayloadSerializer().serializedSize(message.payload, version)
                              : 0;
             return Ints.checkedCast(payloadSize);
         }
     }
 
-    private IVersionedAsymmetricSerializer<T, ?> getPre40Serializer()
+    private IVersionedAsymmetricSerializer<T, ?> getPayloadSerializer()
     {
-        return getPre40Serializer(verb(), id(), from());
+        return getPayloadSerializer(verb(), id(), from());
     }
 
-    // Verb#serializer() is null for legacy response messages
-    private static <T> IVersionedAsymmetricSerializer<T, ?> getPre40Serializer(Verb verb, long id, InetAddressAndPort from)
+    // Verb#serializer() is null for legacy response messages. Once all Verbs with null handlers
+    // are removed in a future major, this method can be replaced with a call to verb.serializer.
+    private static <In,Out> IVersionedAsymmetricSerializer<In, Out> getPayloadSerializer(Verb verb, long id, InetAddressAndPort from)
     {
         return null != verb.serializer()
              ? verb.serializer()
