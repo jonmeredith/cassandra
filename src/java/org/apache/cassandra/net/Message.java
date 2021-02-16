@@ -755,12 +755,9 @@ public class Message<T>
 
         private <T> void serializePost40(Message<T> message, DataOutputPlus out, int version) throws IOException
         {
-            IVersionedAsymmetricSerializer<T, ?> payloadSerializer = message.verb().serializer();
-            if (null == payloadSerializer)
-                payloadSerializer = instance().callbacks.responseSerializer(message.id(), message.from());
             serializeHeaderPost40(message.header, out, version);
             out.writeUnsignedVInt(message.payloadSize(version));
-            payloadSerializer.serialize(message.payload, out, version);
+            message.getPre40Serializer().serialize(message.payload, out, version);
         }
 
         private <T> Message<T> deserializePost40(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
@@ -919,10 +916,7 @@ public class Message<T>
             {
                 int payloadSize = message.payloadSize(version);
                 out.writeInt(payloadSize);
-                IVersionedAsymmetricSerializer<T, ?> payloadSerializer = message.verb().serializer();
-                if (null == payloadSerializer)
-                    payloadSerializer = instance().callbacks.responseSerializer(message.id(), message.from());
-                payloadSerializer.serialize(message.payload, out, version);
+                message.getPre40Serializer().serialize(message.payload, out, version);
             }
             else
             {
@@ -946,11 +940,8 @@ public class Message<T>
             if (skipHeader)
                 skipHeaderPre40(in);
 
-            IVersionedAsymmetricSerializer<?, T> payloadSerializer = header.verb.serializer();
-            if (null == payloadSerializer)
-                payloadSerializer = instance().callbacks.responseSerializer(header.id, header.from);
             int payloadSize = in.readInt();
-            T payload = deserializePayloadPre40(in, version, payloadSerializer, payloadSize);
+            T payload = deserializePayloadPre40(in, version, getPre40Serializer(header.verb, header.id, header.from), payloadSize);
 
             Message<T> message = new Message<>(header, payload);
 
@@ -1291,14 +1282,24 @@ public class Message<T>
 
         private <T> int payloadSize(Message<T> message, int version)
         {
-            IVersionedAsymmetricSerializer<T, ?> payloadSerializer = message.verb().serializer();
-            if (null == payloadSerializer)
-                payloadSerializer = instance().callbacks.responseSerializer(message.id(), message.from());
             long payloadSize = message.payload != null && message.payload != NoPayload.noPayload
-                             ? payloadSerializer.serializedSize(message.payload, version)
+                             ? message.getPre40Serializer().serializedSize(message.payload, version)
                              : 0;
             return Ints.checkedCast(payloadSize);
         }
+    }
+
+    private IVersionedAsymmetricSerializer<T, ?> getPre40Serializer()
+    {
+        return getPre40Serializer(verb(), id(), from());
+    }
+
+    // Verb#serializer() is null for legacy response messages
+    private static <T> IVersionedAsymmetricSerializer<T, ?> getPre40Serializer(Verb verb, long id, InetAddressAndPort from)
+    {
+        return null != verb.serializer()
+             ? verb.serializer()
+             : instance().callbacks.responseSerializer(id, from);
     }
 
     private int serializedSize30;
