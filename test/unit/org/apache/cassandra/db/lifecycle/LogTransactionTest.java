@@ -1787,6 +1787,54 @@ public class LogTransactionTest extends AbstractTransactionalTest
     }
 
     /**
+     * Untracking a new sstable must leave none of its files behind when the directory listing in
+     * {@link LogFile#remove} fails. {@link LogRecord#getExistingFiles(String)} returns an empty list
+     * when the listing throws an IOException, such as EACCES or EIO. LogFile.remove then deletes
+     * nothing but still drops the ADD record from the in-memory records. The commit ignores the ADD
+     * line on disk, so the files outlive the transaction log.
+     * <p>
+     * A fix either deletes the files in untrackNew or makes untrackNew throw so the caller aborts the
+     * transaction; the test accepts both. Without a fix, untrackNew returns normally, the transaction
+     * commits, and assertFiles fails on the first leftover component with
+     * "...-big-Index.db not in [[]]".
+     */
+    @Test
+    public void testUntrackNewWithFailedListingDoesNotOrphanFiles() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
+        // the components on disk stand in for the files a writer wrote before it was untracked
+        SSTableReader sstable = sstable(dataFolder, cfs, 0, 128);
+
+        LogTransaction log = new LogTransaction(OperationType.COMPACTION);
+        log.trackNew(sstable);
+
+        // simulate a failed listing in LogFile.remove, which getExistingFiles reports as no files
+        boolean untracked;
+        try (MockedStatic<LogRecord> logRecord = mockStatic(LogRecord.class, CALLS_REAL_METHODS))
+        {
+            logRecord.when(() -> LogRecord.getExistingFiles(anyString())).thenReturn(Collections.emptyList());
+            log.untrackNew(sstable);
+            untracked = true;
+        }
+        catch (Throwable t)
+        {
+            untracked = false;
+        }
+
+        // complete the transaction as a caller would: commit if untrackNew returned, abort if it threw
+        if (untracked)
+            log.finish();
+        else
+            log.abort();
+        log.close();
+        sstable.selfRef().release();
+
+        // no file of the untracked sstable may survive the completed transaction
+        assertFiles(dataFolder.path(), Collections.emptySet());
+    }
+
+    /**
      * Create files which share the sstable's prefix - so a directory listing picks them up as if they belonged to it -
      * but which are not components of the sstable.
      */
