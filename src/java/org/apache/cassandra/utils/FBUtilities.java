@@ -97,6 +97,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.utils.concurrent.ReportingWaits;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BUILD_DATE;
@@ -540,7 +541,7 @@ public class FBUtilities
             {
                 if (endNanos == 0)
                 {
-                    results.add(f.get());
+                    results.add(ReportingWaits.get(f, null, null));
                 }
                 else
                 {
@@ -561,7 +562,7 @@ public class FBUtilities
     {
         try
         {
-            return future.get();
+            return ReportingWaits.get(future, null, null);
         }
         catch (ExecutionException ee)
         {

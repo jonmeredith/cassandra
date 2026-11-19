@@ -87,12 +87,14 @@ import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
+import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.apache.cassandra.utils.concurrent.WaitContext;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toSet;
@@ -752,6 +754,17 @@ public class ClusterMetadataService
         if (commitsPaused.get())
             throw new IllegalStateException("Commits are paused, not trying to commit " + transform);
 
+        // Names the commit. A wait reached below reports it.
+        try (Closeable ignored = WaitContext.enter(() -> String.format("%s committing %s",
+                                                                      Thread.currentThread().getName(),
+                                                                      transform.kind())))
+        {
+            return commitInternal(transform, onSuccess, onFailure, deadlineLimitNanos);
+        }
+    }
+
+    private <T1> T1 commitInternal(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitFailureHandler<T1> onFailure, long deadlineLimitNanos)
+    {
         long startTime = nanoTime();
         // Replay everything in-flight before attempting a commit
         // We grab highest consecutive epoch here, since we want both local and remote processors to benefit from
