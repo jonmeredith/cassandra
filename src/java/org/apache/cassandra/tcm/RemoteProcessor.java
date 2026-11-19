@@ -64,6 +64,7 @@ import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
+import org.apache.cassandra.utils.concurrent.ReportingWaits;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.SERVER_ERROR;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -238,7 +239,9 @@ public final class RemoteProcessor implements Processor
     {
         try
         {
-            return fetchLogAndWaitInternal(candidateIterator, log).await().get();
+            return ReportingWaits.get(fetchLogAndWaitInternal(candidateIterator, log),
+                                      () -> "remote CMS log fetch",
+                                      candidateIterator::toString);
         }
         catch (InterruptedException | ExecutionException e)
         {

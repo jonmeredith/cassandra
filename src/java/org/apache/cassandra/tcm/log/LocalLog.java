@@ -70,6 +70,8 @@ import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.Condition;
+import org.apache.cassandra.utils.concurrent.ReportingWaits;
+import org.apache.cassandra.utils.concurrent.WaitContext;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.NON_DAEMON;
@@ -534,7 +536,11 @@ public abstract class LocalLog implements Closeable
             if (pendingEntry.epoch.isDirectlyAfter(prev.epoch)
                 || ((isPreInit || isSnapshot) && pendingEntry.epoch.isAfter(prev.epoch)))
             {
-                try
+                // Names the entry the follower enacts. A wait reached from a listener reports it.
+                try (Closeable ignored = WaitContext.enter(() -> String.format("%s enacting epoch %s (%s)",
+                                                                              Thread.currentThread().getName(),
+                                                                              pendingEntry.epoch,
+                                                                              kind)))
                 {
                     Transformation.Result transformed;
 
@@ -766,8 +772,11 @@ public abstract class LocalLog implements Closeable
                 {
                     if (duration == null)
                     {
-
-                        current.awaitThrowUncheckedOnInterrupt();
+                        ReportingWaits.await(current,
+                                             () -> "TCM log follower (in flight loop)",
+                                             () -> String.format("pending=%s tail=%s",
+                                                                 pending.keySet().stream().map(re -> re.epoch).collect(Collectors.toList()),
+                                                                 metadata().epoch));
                     }
                     else if (!current.awaitThrowUncheckedOnInterrupt(duration.to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
                     {
@@ -796,7 +805,11 @@ public abstract class LocalLog implements Closeable
                 if (runnable.subscriber.compareAndSet(null, ours))
                 {
                     runnable.logNotifier.signalAll();
-                    ours.awaitThrowUncheckedOnInterrupt();
+                    ReportingWaits.await(ours,
+                                         () -> "TCM log follower (full loop)",
+                                         () -> String.format("pending=%s tail=%s",
+                                                             pending.keySet().stream().map(re -> re.epoch).collect(Collectors.toList()),
+                                                             metadata().epoch));
                     return;
                 }
             }
@@ -904,7 +917,20 @@ public abstract class LocalLog implements Closeable
                 ClusterMetadata lastSeen = metadata();
                 while (!isCommitted(lastSeen))
                 {
-                    runOnce(duration);
+                    try
+                    {
+                        runOnce(duration);
+                    }
+                    catch (TimeoutException e)
+                    {
+                        // Callers turn this into a generic commit failure.
+                        // Say what the wait was for.
+                        logger.warn("Timed out after {} waiting for epoch {} to be enacted. Context: {}. pending={} tail={}",
+                                    duration, waitingFor, WaitContext.describe(),
+                                    pending.keySet().stream().map(re -> re.epoch).collect(Collectors.toList()),
+                                    metadata().epoch);
+                        throw e;
+                    }
                     lastSeen = metadata();
 
                     if (executor.isTerminated() && !isCommitted(lastSeen))

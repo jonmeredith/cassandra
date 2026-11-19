@@ -51,6 +51,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Promise;
+import org.apache.cassandra.utils.concurrent.WaitContext;
 
 import static org.apache.cassandra.schema.DistributedMetadataLogKeyspace.tryCommit;
 
@@ -154,6 +155,16 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
                         return o;
                     });
                     iter.remove();
+                }
+                else if (retryPolicy.attempts() == 1)
+                {
+                    logger.debug("Log fetch from {} has not succeeded, collected {} of {} required. Context: {}",
+                                 request.to.endpoint(), collected.size(), blockFor, WaitContext.describe());
+                }
+                else
+                {
+                    logger.warn("Log fetch from {} has not succeeded after {} tries, collected {} of {} required. Context: {}",
+                                request.to.endpoint(), retryPolicy.attempts() - 1, collected.size(), blockFor, WaitContext.describe());
                 }
             }
 
